@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { Worker } from 'bullmq';
 import IORedis from 'ioredis';
 import { runAudit } from './agent/runner';
+import { runCleanup } from './cleanup';
 
 const connection = new IORedis(process.env.REDIS_URL || 'redis://localhost:6379', {
   maxRetriesPerRequest: null,
@@ -25,3 +26,7 @@ worker.on('completed', (job) => console.log(`[worker] job ${job.id} completed`))
 worker.on('failed', (job, err) => console.error(`[worker] job ${job?.id} failed:`, err));
 
 console.log('[worker] listening for audit jobs...');
+
+// Run cleanup on startup then every 24 hours
+runCleanup();
+setInterval(runCleanup, 24 * 60 * 60 * 1000);
