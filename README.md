@@ -6,6 +6,14 @@ Drop a GitHub URL and watch the AI clone the repo, run static analysis, and reas
 
 🔗 **Live demo:** [http://34.239.164.89:3000](http://34.239.164.89:3000)
 
+### Sample reports
+
+| Repository | Report |
+|------------|--------|
+| [mitmproxy/mitmproxy](https://github.com/mitmproxy/mitmproxy) | [View report](http://34.239.164.89:3000/report/26b9a3ba) |
+| [sherlock-project/sherlock](https://github.com/sherlock-project/sherlock) | [View report](http://34.239.164.89:3000/report/b8f2d882) |
+| [OWASP/WebGoat](https://github.com/WebGoat/WebGoat) | [View report](http://34.239.164.89:3000/report/6a1f4bad) |
+
 ---
 
 ## What it does
