@@ -1,15 +1,10 @@
+'use client';
+
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 
-async function getRecentAudits() {
-  const apiUrl = process.env.INTERNAL_API_URL || 'http://api:3001';
-  try {
-    const res = await fetch(`${apiUrl}/api/audits/recent`, { cache: 'no-store' });
-    if (!res.ok) return [];
-    const data = await res.json();
-    return data.audits ?? [];
-  } catch {
-    return [];
-  }
+function getApiUrl() {
+  return `${window.location.protocol}//${window.location.hostname}:3001`;
 }
 
 const STATUS_STYLES: Record<string, string> = {
@@ -19,8 +14,26 @@ const STATUS_STYLES: Record<string, string> = {
   failed: 'text-red-400 bg-red-400/10 border-red-400/20',
 };
 
-export default async function AuditsPage() {
-  const audits = await getRecentAudits();
+export default function AuditsPage() {
+  const [audits, setAudits] = useState<any[]>([]);
+  const [deleting, setDeleting] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch(`${getApiUrl()}/api/audits/recent`)
+      .then(r => r.json())
+      .then(d => setAudits(d.audits ?? []))
+      .catch(() => {});
+  }, []);
+
+  async function handleDelete(e: React.MouseEvent, auditId: string) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!confirm('Delete this audit?')) return;
+    setDeleting(auditId);
+    await fetch(`${getApiUrl()}/api/audits/${auditId}`, { method: 'DELETE' });
+    setAudits(prev => prev.filter(a => a.id !== auditId));
+    setDeleting(null);
+  }
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-12">
@@ -37,31 +50,40 @@ export default async function AuditsPage() {
       )}
 
       <div className="space-y-3">
-        {audits.map((audit: any) => (
-          <Link
-            key={audit.id}
-            href={audit.status === 'done' ? `/report/${audit.public_slug}` : `/audit/${audit.id}`}
-            className="block bg-terminal-surface border border-terminal-border rounded-lg px-5 py-4
-                       hover:border-terminal-green transition-colors group"
-          >
-            <div className="flex items-center justify-between gap-4">
-              <div className="min-w-0">
-                <p className="text-terminal-text font-mono text-sm truncate group-hover:text-terminal-green transition-colors">
-                  {audit.repo_url}
-                </p>
-                <p className="text-terminal-muted text-xs mt-1">
-                  {new Date(audit.created_at).toLocaleString()}
-                </p>
+        {audits.map((audit) => (
+          <div key={audit.id} className="flex items-center gap-2">
+            <Link
+              href={audit.status === 'done' ? `/report/${audit.public_slug}` : `/audit/${audit.id}`}
+              className="flex-1 bg-terminal-surface border border-terminal-border rounded-lg px-5 py-4
+                         hover:border-terminal-green transition-colors group"
+            >
+              <div className="flex items-center justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="text-terminal-text font-mono text-sm truncate group-hover:text-terminal-green transition-colors">
+                    {audit.repo_url.replace('https://github.com/', '')}
+                  </p>
+                  <p className="text-terminal-muted text-xs mt-1">
+                    {new Date(audit.created_at).toLocaleString()}
+                  </p>
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
+                  <span className={`text-xs px-2 py-0.5 rounded border font-mono uppercase ${STATUS_STYLES[audit.status] ?? STATUS_STYLES.queued}`}>
+                    {audit.status === 'running' && <span className="inline-block w-1.5 h-1.5 bg-current rounded-full mr-1 animate-pulse" />}
+                    {audit.status}
+                  </span>
+                  <span className="text-terminal-muted text-xs">→</span>
+                </div>
               </div>
-              <div className="flex items-center gap-3 shrink-0">
-                <span className={`text-xs px-2 py-0.5 rounded border font-mono uppercase ${STATUS_STYLES[audit.status] ?? STATUS_STYLES.queued}`}>
-                  {audit.status === 'running' && <span className="inline-block w-1.5 h-1.5 bg-current rounded-full mr-1 animate-pulse" />}
-                  {audit.status}
-                </span>
-                <span className="text-terminal-muted text-xs">→</span>
-              </div>
-            </div>
-          </Link>
+            </Link>
+            <button
+              onClick={(e) => handleDelete(e, audit.id)}
+              disabled={deleting === audit.id}
+              className="shrink-0 p-3 text-terminal-muted hover:text-terminal-red transition-colors disabled:opacity-50"
+              title="Delete audit"
+            >
+              {deleting === audit.id ? '...' : '✕'}
+            </button>
+          </div>
         ))}
       </div>
     </div>

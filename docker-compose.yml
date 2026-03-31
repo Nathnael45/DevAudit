@@ -68,7 +68,7 @@ services:
       api:
         condition: service_started
     volumes:
-      - /tmp/devaudit-repos:/tmp/devaudit-repos
+      - repos:/tmp/devaudit-repos
 
   web:
     build:
@@ -86,3 +86,4 @@ services:
 
 volumes:
   postgres_data:
+  repos:

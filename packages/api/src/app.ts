@@ -14,10 +14,10 @@ app.use(express.json());
 const isLocalhost = (req: express.Request) =>
   req.ip === '127.0.0.1' || req.ip === '::1' || req.ip === '::ffff:127.0.0.1';
 
-// Max 20 audit submissions per IP per hour
+// Max 100 audit submissions per IP per hour
 const auditLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
-  max: 20,
+  max: 100,
   message: { error: 'Too many audits from this IP, please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -26,7 +26,8 @@ const auditLimiter = rateLimit({
 
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 app.use('/api/auth', authRouter);
-app.use('/api/audits', auditLimiter, auditRouter);
+app.post('/api/audits', auditLimiter);
+app.use('/api/audits', auditRouter);
 app.use('/api/reports', reportsRouter);
 app.use('/internal', internalRouter);
 

@@ -19,5 +19,8 @@ COPY --from=builder /app/packages/api/dist ./dist
 COPY --from=deps /app/node_modules ./node_modules
 COPY packages/api/package.json ./package.json
 
+RUN addgroup -S devaudit && adduser -S devaudit -G devaudit
+USER devaudit
+
 EXPOSE 3001
 CMD ["node", "dist/index.js"]

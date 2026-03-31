@@ -58,6 +58,14 @@ auditRouter.get('/:id', async (req, res) => {
   res.json({ audit: audit.rows[0], events: events.rows, findings: findings.rows });
 });
 
+// DELETE /api/audits/:id — delete an audit and all its data
+auditRouter.delete('/:id', async (req, res) => {
+  if (!UUID_RE.test(req.params.id)) { res.status(400).json({ error: 'Invalid audit ID' }); return; }
+  const result = await db.query('DELETE FROM audits WHERE id = $1 RETURNING id', [req.params.id]);
+  if (!result.rows[0]) { res.status(404).json({ error: 'Not found' }); return; }
+  res.json({ ok: true });
+});
+
 // POST /api/audits/:id/cancel — cancel a queued or running audit
 auditRouter.post('/:id/cancel', async (req, res) => {
   if (!UUID_RE.test(req.params.id)) { res.status(400).json({ error: 'Invalid audit ID' }); return; }

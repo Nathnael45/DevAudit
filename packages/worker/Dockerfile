@@ -22,4 +22,8 @@ COPY --from=builder /app/dist ./dist
 COPY --from=deps /app/node_modules ./node_modules
 COPY package.json ./
 
+RUN addgroup -S devaudit && adduser -S devaudit -G devaudit && \
+    mkdir -p /tmp/devaudit-repos && chown devaudit:devaudit /tmp/devaudit-repos
+USER devaudit
+
 CMD ["node", "dist/index.js"]
