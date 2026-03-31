@@ -93,8 +93,17 @@ Please analyze these findings, think through each one carefully, identify real v
     await thought(`AI analysis started. Streaming reasoning...`);
 
     let fullText = '';
+    let textBuffer = '';
+    let lastFlush = Date.now();
 
-    const stream = await anthropic.messages.stream({
+    const flushBuffer = () => {
+      if (!textBuffer) return;
+      emit(auditId, 'text_delta', { delta: textBuffer });
+      textBuffer = '';
+      lastFlush = Date.now();
+    };
+
+    const stream = anthropic.messages.stream({
       model: 'claude-opus-4-6',
       max_tokens: 8000,
       thinking: { type: 'adaptive' } as any,
@@ -105,14 +114,18 @@ Please analyze these findings, think through each one carefully, identify real v
     for await (const event of stream) {
       if (event.type === 'content_block_delta') {
         if (event.delta.type === 'thinking_delta') {
-          // Stream thinking tokens live to frontend
-          emit(auditId, 'thinking_delta', { delta: event.delta.thinking });
+          // skip thinking deltas — too noisy over HTTP
         } else if (event.delta.type === 'text_delta') {
           fullText += event.delta.text;
-          emit(auditId, 'text_delta', { delta: event.delta.text });
+          textBuffer += event.delta.text;
+          // Flush every 300ms or every 200 chars
+          if (Date.now() - lastFlush > 300 || textBuffer.length > 200) {
+            flushBuffer();
+          }
         }
       }
     }
+    flushBuffer(); // flush remainder
 
     // 5. Parse findings from Claude's response
     const findingsMatch = fullText.match(/<findings>([\s\S]*?)<\/findings>/);

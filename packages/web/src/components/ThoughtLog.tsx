@@ -67,7 +67,12 @@ export default function ThoughtLog({ events, thinkingText, analysisText, status 
               prose-li:text-terminal-muted prose-li:my-0.5
               prose-ul:my-1 prose-ol:my-1
               prose-blockquote:border-terminal-green prose-blockquote:text-terminal-muted">
-              <ReactMarkdown>{analysisText.replace(/<findings>[\s\S]*?<\/findings>/g, '').trim()}</ReactMarkdown>
+              <ReactMarkdown>
+                {analysisText
+                  .replace(/<findings>[\s\S]*?<\/findings>/g, '')  // strip complete block
+                  .replace(/<findings>[\s\S]*/g, '\n\n_Summarizing findings..._')  // replace partial block while streaming
+                  .trim()}
+              </ReactMarkdown>
             </div>
             {status === 'running' && (
               <span className="text-terminal-green animate-pulse text-sm">▌</span>
