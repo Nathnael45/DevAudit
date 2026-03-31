@@ -14,20 +14,20 @@ app.use(express.json());
 const isLocalhost = (req: express.Request) =>
   req.ip === '127.0.0.1' || req.ip === '::1' || req.ip === '::ffff:127.0.0.1';
 
-// Max 10 audits per IP per hour
+// Max 50 audits per IP per hour
 const auditLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
-  max: 10,
+  max: 50,
   message: { error: 'Too many audits from this IP, please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
   skip: isLocalhost,
 });
 
-// Max 60 general requests per IP per minute
+// Max 300 general requests per IP per minute
 const generalLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 60,
+  max: 300,
   standardHeaders: true,
   legacyHeaders: false,
   skip: isLocalhost,
