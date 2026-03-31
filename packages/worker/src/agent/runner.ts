@@ -103,25 +103,44 @@ Please analyze these findings, think through each one carefully, identify real v
       lastFlush = Date.now();
     };
 
-    const stream = anthropic.messages.stream({
-      model: 'claude-opus-4-6',
-      max_tokens: 8000,
-      thinking: { type: 'adaptive' } as any,
-      system: systemPrompt,
-      messages: [{ role: 'user', content: userMessage }],
-    });
+    // Retry up to 3 times on overloaded_error with exponential backoff
+    const MAX_RETRIES = 3;
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const stream = anthropic.messages.stream({
+          model: 'claude-opus-4-6',
+          max_tokens: 8000,
+          thinking: { type: 'adaptive' } as any,
+          system: systemPrompt,
+          messages: [{ role: 'user', content: userMessage }],
+        });
 
-    for await (const event of stream) {
-      if (event.type === 'content_block_delta') {
-        if (event.delta.type === 'thinking_delta') {
-          // skip thinking deltas — too noisy over HTTP
-        } else if (event.delta.type === 'text_delta') {
-          fullText += event.delta.text;
-          textBuffer += event.delta.text;
-          // Flush every 300ms or every 200 chars
-          if (Date.now() - lastFlush > 300 || textBuffer.length > 200) {
-            flushBuffer();
+        for await (const event of stream) {
+          if (event.type === 'content_block_delta') {
+            if (event.delta.type === 'thinking_delta') {
+              // skip thinking deltas — too noisy over HTTP
+            } else if (event.delta.type === 'text_delta') {
+              fullText += event.delta.text;
+              textBuffer += event.delta.text;
+              // Flush every 300ms or every 200 chars
+              if (Date.now() - lastFlush > 300 || textBuffer.length > 200) {
+                flushBuffer();
+              }
+            }
           }
+        }
+        break; // success — exit retry loop
+      } catch (err: any) {
+        const isOverloaded = err?.error?.error?.type === 'overloaded_error' ||
+          err?.message?.includes('overloaded');
+        if (isOverloaded && attempt < MAX_RETRIES) {
+          const waitMs = (attempt + 1) * 15000; // 15s, 30s, 45s
+          await thought(`API overloaded. Retrying in ${waitMs / 1000}s... (attempt ${attempt + 1}/${MAX_RETRIES})`);
+          await new Promise(res => setTimeout(res, waitMs));
+          fullText = ''; // reset buffer on retry
+          textBuffer = '';
+        } else {
+          throw err;
         }
       }
     }
