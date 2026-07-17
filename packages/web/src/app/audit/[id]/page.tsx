@@ -48,7 +48,7 @@ export default function AuditPage({ params }: { params: { id: string } }) {
           <span className="text-terminal-border">|</span>
           {repoName ? (
             <span className="text-terminal-text text-sm font-mono truncate">
-              Auditing <span className="text-terminal-green">"{repoName}"</span>
+              Auditing <span className="text-terminal-green">&quot;{repoName}&quot;</span>
             </span>
           ) : (
             <span className="text-terminal-muted text-xs font-mono truncate">{id}</span>
