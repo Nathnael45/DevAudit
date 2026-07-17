@@ -8,6 +8,22 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: devaudit
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: devaudit_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U devaudit"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       - uses: actions/checkout@v4
 
@@ -26,6 +42,15 @@ jobs:
 
       - name: Typecheck (worker)
         run: npx tsc --noEmit -p packages/worker/tsconfig.json
+
+      - name: Apply DB schema for api tests
+        run: PGPASSWORD=test psql -h localhost -U devaudit -d devaudit_test -f packages/api/src/db/schema.sql
+
+      - name: Test (api)
+        run: npm run test --workspace=packages/api
+        env:
+          DATABASE_URL: postgresql://devaudit:test@localhost:5432/devaudit_test
+          JWT_SECRET: test-jwt-secret-ci
 
       - name: Test (worker)
         run: npm run test --workspace=packages/worker
