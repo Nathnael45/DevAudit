@@ -6,6 +6,10 @@ export async function updateAuditStatus(auditId: string, status: string) {
   await db.query('UPDATE audits SET status = $1 WHERE id = $2', [status, auditId]);
 }
 
+export async function updateAuditTimings(auditId: string, timings: object) {
+  await db.query('UPDATE audits SET timings = $1 WHERE id = $2', [JSON.stringify(timings), auditId]);
+}
+
 export async function saveEvent(
   auditId: string,
   type: 'thought' | 'finding' | 'summary' | 'error',

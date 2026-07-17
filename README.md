@@ -103,6 +103,13 @@ usually remember):
    docker compose exec postgres psql -U devaudit -d devaudit \
      -c "ALTER TABLE audits ADD COLUMN IF NOT EXISTS owner_token_hash TEXT;"
    ```
+   It also gained a `timings` column (per-phase clone/scan/AI durations, used to
+   back up the performance numbers below with real measurements instead of
+   config constants):
+   ```bash
+   docker compose exec postgres psql -U devaudit -d devaudit \
+     -c "ALTER TABLE audits ADD COLUMN IF NOT EXISTS timings JSONB;"
+   ```
 2. If your volume predates `POSTGRES_PASSWORD` being required (i.e. it was
    initialized with the old hardcoded `devaudit`/`devaudit` credential), Postgres
    keeps that password on disk — setting a new `POSTGRES_PASSWORD` in `.env` alone
@@ -144,3 +151,5 @@ usually remember):
 **Ownership without accounts** — most audits are started anonymously, but people still need to cancel or delete the ones they kicked off. Each audit gets a random owner token at creation time (returned once, held client-side); cancel/delete require that token or a matching authenticated `user_id`. `GET /api/audits/recent` and shareable reports stay public, but only the creator can mutate their own audit.
 
 **Shared secret on the internal broadcast route** — the worker pushes events to the browser via `POST /internal/broadcast` on the API, but the API's port is reachable from outside the docker network too (the browser talks to it directly). That route requires an `INTERNAL_SECRET` header rather than trusting network placement alone.
+
+**Per-phase timing, not just config constants** — each audit records clone/scan/AI durations (`audits.timings`), with each of the three scanners timed individually even though they run concurrently. That's what makes it possible to state an honest parallelism payoff (parallel wall-clock vs. the sum of the three durations run serially) instead of just describing the setting (`concurrency: 3`) and assuming it helped.

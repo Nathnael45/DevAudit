@@ -3,12 +3,24 @@ import { cloneRepo, cleanupRepo } from '../scanner/gitClone';
 import { runSemgrep } from '../scanner/semgrep';
 import { runBandit } from '../scanner/bandit';
 import { runGitleaks } from '../scanner/gitleaks';
-import { updateAuditStatus, saveEvent, saveFinding } from '../utils/db';
+import { updateAuditStatus, updateAuditTimings, saveEvent, saveFinding } from '../utils/db';
 import { emit } from '../utils/broadcaster';
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+// Runs fn, reporting how long it took alongside its result — used so the three
+// scanners can be timed individually while still running concurrently, which is
+// what lets you honestly compare parallel wall-clock time against the sum of
+// serial durations (the actual payoff of running them in parallel at all).
+async function timed<T>(fn: () => Promise<T>): Promise<[T, number]> {
+  const start = Date.now();
+  const result = await fn();
+  return [result, Date.now() - start];
+}
+
 export async function runAudit({ auditId, repoUrl }: { auditId: string; repoUrl: string }) {
+  const timings: Record<string, number> = {};
+
   async function thought(msg: string) {
     await saveEvent(auditId, 'thought', msg);
     emit(auditId, 'thought', { content: msg });
@@ -21,7 +33,8 @@ export async function runAudit({ auditId, repoUrl }: { auditId: string; repoUrl:
 
     // 1. Clone
     await thought(`Cloning repository: ${repoUrl}`);
-    const repoPath = await cloneRepo(auditId, repoUrl);
+    const [repoPath, cloneMs] = await timed(() => cloneRepo(auditId, repoUrl));
+    timings.cloneMs = cloneMs;
     await thought(`Repository cloned. Starting static analysis...`);
 
     // 2. Static analysis (parallel)
@@ -29,11 +42,20 @@ export async function runAudit({ auditId, repoUrl }: { auditId: string; repoUrl:
     await thought(`Running Bandit (Python security linter)...`);
     await thought(`Running Gitleaks (secrets scanner)...`);
 
-    const [semgrepFindings, banditFindings, gitleaksFindings] = await Promise.all([
-      runSemgrep(repoPath),
-      runBandit(repoPath),
-      runGitleaks(repoPath),
+    const scanWallStart = Date.now();
+    const [
+      [semgrepFindings, semgrepMs],
+      [banditFindings, banditMs],
+      [gitleaksFindings, gitleaksMs],
+    ] = await Promise.all([
+      timed(() => runSemgrep(repoPath)),
+      timed(() => runBandit(repoPath)),
+      timed(() => runGitleaks(repoPath)),
     ]);
+    timings.scanWallMs = Date.now() - scanWallStart;
+    timings.semgrepMs = semgrepMs;
+    timings.banditMs = banditMs;
+    timings.gitleaksMs = gitleaksMs;
 
     await thought(`Semgrep found ${semgrepFindings.length} potential issues.`);
     await thought(`Bandit found ${banditFindings.length} potential issues.`);
@@ -91,6 +113,7 @@ Please analyze these findings, think through each one carefully, identify real v
 
     // 4. Stream Claude's reasoning
     await thought(`AI analysis started. Streaming reasoning...`);
+    const aiStart = Date.now();
 
     let fullText = '';
     let textBuffer = '';
@@ -145,6 +168,7 @@ Please analyze these findings, think through each one carefully, identify real v
       }
     }
     flushBuffer(); // flush remainder
+    timings.aiMs = Date.now() - aiStart;
 
     // 5. Parse findings from Claude's response
     const findingsMatch = fullText.match(/<findings>([\s\S]*?)<\/findings>/);
@@ -181,6 +205,7 @@ Please analyze these findings, think through each one carefully, identify real v
     emit(auditId, 'summary', { content: summaryText });
 
     // 8. Done
+    await updateAuditTimings(auditId, timings);
     await updateAuditStatus(auditId, 'done');
     await cleanupRepo(auditId);
     emit(auditId, 'status', { status: 'done' });
@@ -188,6 +213,7 @@ Please analyze these findings, think through each one carefully, identify real v
 
   } catch (err: any) {
     console.error(`[agent][${auditId}] fatal error:`, err);
+    await updateAuditTimings(auditId, timings); // persist whatever phases completed before the failure
     await saveEvent(auditId, 'error', err.message ?? 'Unknown error');
     await updateAuditStatus(auditId, 'failed');
     emit(auditId, 'status', { status: 'failed', error: err.message });
