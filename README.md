@@ -23,7 +23,7 @@ Drop a GitHub URL and watch the AI clone the repo, run static analysis, and reas
    - [Semgrep](https://semgrep.dev) — language-agnostic vulnerability patterns (SQL injection, XSS, insecure APIs)
    - [Bandit](https://bandit.readthedocs.io) — Python-specific security linter
    - [Gitleaks](https://gitleaks.io) — secrets and credential scanner
-3. **Reasons** with Claude (claude-opus-4-6 with adaptive thinking) — evaluates each finding, filters false positives, assigns severity, writes fix recommendations
+3. **Reasons** with Claude (claude-sonnet-5 with adaptive thinking) — evaluates each finding, filters false positives, assigns severity, writes fix recommendations
 4. **Streams** every token of AI reasoning live to the browser over WebSocket
 5. **Generates** a shareable public report URL with full findings grouped by severity
 
@@ -60,7 +60,7 @@ Browser
 |-------|------|
 | Frontend | Next.js 14, Tailwind CSS, WebSocket |
 | API | Express, BullMQ, WebSocket (ws) |
-| Agent worker | Node.js, Anthropic SDK (claude-opus-4-6) |
+| Agent worker | Node.js, Anthropic SDK (claude-sonnet-5) |
 | Static analysis | Semgrep, Bandit, Gitleaks |
 | Queue | BullMQ + Redis |
 | Database | PostgreSQL |

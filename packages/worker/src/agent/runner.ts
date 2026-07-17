@@ -131,7 +131,7 @@ Please analyze these findings, think through each one carefully, identify real v
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       try {
         const stream = anthropic.messages.stream({
-          model: 'claude-opus-4-6',
+          model: 'claude-sonnet-5',
           max_tokens: 8000,
           thinking: { type: 'adaptive' } as any,
           system: systemPrompt,
