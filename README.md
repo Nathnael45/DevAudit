@@ -10,11 +10,11 @@ Drop a GitHub URL and watch the AI clone the repo, run static analysis, and reas
 
 ### Sample reports
 
-| Repository | Report |
-|------------|--------|
-| [mitmproxy/mitmproxy](https://github.com/mitmproxy/mitmproxy) | [View report](http://34.239.164.89:3000/report/26b9a3ba) |
-| [sherlock-project/sherlock](https://github.com/sherlock-project/sherlock) | [View report](http://34.239.164.89:3000/report/b8f2d882) |
-| [OWASP/WebGoat](https://github.com/WebGoat/WebGoat) | [View report](http://34.239.164.89:3000/report/6a1f4bad) |
+| Repository | Report | Notes |
+|------------|--------|-------|
+| [mitmproxy/mitmproxy](https://github.com/mitmproxy/mitmproxy) | [View report](http://3.238.180.25:3000/report/2268138a) | 9 confirmed findings |
+| [sherlock-project/sherlock](https://github.com/sherlock-project/sherlock) | [View report](http://3.238.180.25:3000/report/c5f0333e) | 56 raw scanner hits triaged down to 0 real findings |
+| [OWASP/WebGoat](https://github.com/WebGoat/WebGoat) | [View report](http://3.238.180.25:3000/report/a86360c1) | 17 Gitleaks hits correctly identified as test fixtures/minified JS, not real leaks |
 
 ---
 
