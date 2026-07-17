@@ -55,5 +55,8 @@ jobs:
       - name: Test (worker)
         run: npm run test --workspace=packages/worker
 
+      - name: Test (web)
+        run: npm run test --workspace=packages/web
+
       - name: Build
         run: npm run build --workspaces

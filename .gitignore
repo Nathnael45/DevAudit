@@ -9,5 +9,6 @@ dist/
 .next/
 .turbo/
 coverage/
+*.tsbuildinfo
 /tmp/
 /repos/
