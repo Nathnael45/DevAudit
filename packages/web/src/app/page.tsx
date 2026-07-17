@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { saveOwnerToken } from '@/lib/ownerTokens';
 
 function getApiUrl() {
   return `${window.location.protocol}//${window.location.hostname}:3001`;
@@ -46,7 +47,8 @@ export default function HomePage() {
         throw new Error(data.error ?? 'Failed to start audit');
       }
 
-      const { auditId } = await res.json();
+      const { auditId, ownerToken } = await res.json();
+      saveOwnerToken(auditId, ownerToken);
       router.push(`/audit/${auditId}`);
     } catch (err: any) {
       setError(err.message);

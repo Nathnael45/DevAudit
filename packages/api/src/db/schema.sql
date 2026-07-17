@@ -15,9 +15,13 @@ CREATE TABLE IF NOT EXISTS audits (
   repo_url TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'queued',  -- queued | running | done | failed
   public_slug TEXT UNIQUE,
+  owner_token_hash TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   completed_at TIMESTAMPTZ
 );
+
+-- Migration for existing databases (docker-entrypoint-initdb.d only runs on first init):
+-- ALTER TABLE audits ADD COLUMN IF NOT EXISTS owner_token_hash TEXT;
 
 CREATE TABLE IF NOT EXISTS audit_events (
   id BIGSERIAL PRIMARY KEY,

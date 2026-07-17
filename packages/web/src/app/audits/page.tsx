@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { getOwnerToken } from '@/lib/ownerTokens';
 
 function getApiUrl() {
   return `${window.location.protocol}//${window.location.hostname}:3001`;
@@ -17,11 +18,22 @@ const STATUS_STYLES: Record<string, string> = {
 export default function AuditsPage() {
   const [audits, setAudits] = useState<any[]>([]);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [ownerTokens, setOwnerTokens] = useState<Record<string, string>>({});
 
   useEffect(() => {
     fetch(`${getApiUrl()}/api/audits/recent`)
       .then(r => r.json())
-      .then(d => setAudits(d.audits ?? []))
+      .then(d => {
+        const audits = d.audits ?? [];
+        setAudits(audits);
+        // Only audits this browser created (and still has the token for) are deletable.
+        const tokens: Record<string, string> = {};
+        for (const audit of audits) {
+          const token = getOwnerToken(audit.id);
+          if (token) tokens[audit.id] = token;
+        }
+        setOwnerTokens(tokens);
+      })
       .catch(() => {});
   }, []);
 
@@ -30,7 +42,10 @@ export default function AuditsPage() {
     e.stopPropagation();
     if (!confirm('Delete this audit?')) return;
     setDeleting(auditId);
-    await fetch(`${getApiUrl()}/api/audits/${auditId}`, { method: 'DELETE' });
+    await fetch(`${getApiUrl()}/api/audits/${auditId}`, {
+      method: 'DELETE',
+      headers: { 'X-Owner-Token': ownerTokens[auditId] },
+    });
     setAudits(prev => prev.filter(a => a.id !== auditId));
     setDeleting(null);
   }
@@ -75,14 +90,16 @@ export default function AuditsPage() {
                 </div>
               </div>
             </Link>
-            <button
-              onClick={(e) => handleDelete(e, audit.id)}
-              disabled={deleting === audit.id}
-              className="shrink-0 p-3 text-terminal-muted hover:text-terminal-red transition-colors disabled:opacity-50"
-              title="Delete audit"
-            >
-              {deleting === audit.id ? '...' : '✕'}
-            </button>
+            {ownerTokens[audit.id] && (
+              <button
+                onClick={(e) => handleDelete(e, audit.id)}
+                disabled={deleting === audit.id}
+                className="shrink-0 p-3 text-terminal-muted hover:text-terminal-red transition-colors disabled:opacity-50"
+                title="Delete audit"
+              >
+                {deleting === audit.id ? '...' : '✕'}
+              </button>
+            )}
           </div>
         ))}
       </div>

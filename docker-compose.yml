@@ -1,13 +1,14 @@
 services:
+  # Not published to the host — only api/worker need to reach these, over the
+  # docker network. Use `docker compose exec postgres psql -U devaudit` (or the
+  # equivalent for redis-cli) for local inspection instead of a host port.
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
       POSTGRES_USER: devaudit
-      POSTGRES_PASSWORD: devaudit
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: devaudit
-    ports:
-      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./packages/api/src/db/schema.sql:/docker-entrypoint-initdb.d/schema.sql
@@ -20,8 +21,6 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    ports:
-      - "6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -36,9 +35,10 @@ services:
     ports:
       - "3001:3001"
     environment:
-      DATABASE_URL: postgresql://devaudit:devaudit@postgres:5432/devaudit
+      DATABASE_URL: postgresql://devaudit:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/devaudit
       REDIS_URL: redis://redis:6379
-      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      INTERNAL_SECRET: ${INTERNAL_SECRET:?set INTERNAL_SECRET in .env}
       PORT: 3001
       WEB_URL: http://localhost:3000
     depends_on:
@@ -55,10 +55,11 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql://devaudit:devaudit@postgres:5432/devaudit
+      DATABASE_URL: postgresql://devaudit:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/devaudit
       REDIS_URL: redis://redis:6379
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       API_URL: http://api:3001
+      INTERNAL_SECRET: ${INTERNAL_SECRET:?set INTERNAL_SECRET in .env}
       REPOS_DIR: /tmp/devaudit-repos
     depends_on:
       postgres:

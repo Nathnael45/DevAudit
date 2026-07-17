@@ -76,16 +76,42 @@ Browser
 git clone https://github.com/Nathnael45/DevAudit.git
 cd DevAudit
 cp .env.example .env
-# Fill in ANTHROPIC_API_KEY and JWT_SECRET in .env
+# Fill in ANTHROPIC_API_KEY, JWT_SECRET, INTERNAL_SECRET, and POSTGRES_PASSWORD in .env
 docker-compose up --build
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
 
-**Generate a JWT secret:**
+**Generate a secret** (for `JWT_SECRET` and `INTERNAL_SECRET`):
 ```bash
 openssl rand -base64 32
 ```
+
+Postgres and Redis are not published to the host — only `api`/`worker` need to reach
+them, over the docker network. If you run `api`/`worker`/`web` natively via the root
+`npm run dev` script instead of the full compose stack, add a git-ignored
+`docker-compose.override.yml` that republishes `5432`/`6379` for your machine.
+
+**Upgrading an existing deployment** (verified against a real local volume that
+predated these changes — both steps were needed, not just the first one people
+usually remember):
+
+1. The `audits` table gained an `owner_token_hash` column (used to authorize audit
+   cancel/delete without requiring an account). `docker-entrypoint-initdb.d` only
+   runs on a fresh volume, so it won't apply automatically:
+   ```bash
+   docker compose exec postgres psql -U devaudit -d devaudit \
+     -c "ALTER TABLE audits ADD COLUMN IF NOT EXISTS owner_token_hash TEXT;"
+   ```
+2. If your volume predates `POSTGRES_PASSWORD` being required (i.e. it was
+   initialized with the old hardcoded `devaudit`/`devaudit` credential), Postgres
+   keeps that password on disk — setting a new `POSTGRES_PASSWORD` in `.env` alone
+   won't rotate it, and `api`/`worker` will fail to connect. Update it to match:
+   ```bash
+   docker compose exec -e PGPASSWORD=devaudit postgres psql -U devaudit -d devaudit \
+     -c "ALTER USER devaudit WITH PASSWORD '<value of POSTGRES_PASSWORD in .env>';"
+   docker compose restart api worker
+   ```
 
 ---
 
@@ -95,6 +121,8 @@ openssl rand -base64 32
 |----------|-------------|
 | `ANTHROPIC_API_KEY` | Anthropic API key |
 | `JWT_SECRET` | Random secret for JWT signing |
+| `INTERNAL_SECRET` | Random secret shared by api/worker, required on `POST /internal/broadcast` |
+| `POSTGRES_PASSWORD` | Postgres password (also used to build `DATABASE_URL`) |
 | `DATABASE_URL` | PostgreSQL connection string |
 | `REDIS_URL` | Redis connection string |
 | `NEXT_PUBLIC_API_URL` | API base URL (browser-facing) |
@@ -112,3 +140,7 @@ openssl rand -base64 32
 **Batched streaming** — Claude token deltas are buffered (300ms or 200 chars) before broadcasting to avoid flooding the HTTP broadcast endpoint with hundreds of tiny requests per second.
 
 **Shallow clone** — `git clone --depth 1` keeps clone times under 10 seconds for most repos and avoids storing full git history on disk.
+
+**Ownership without accounts** — most audits are started anonymously, but people still need to cancel or delete the ones they kicked off. Each audit gets a random owner token at creation time (returned once, held client-side); cancel/delete require that token or a matching authenticated `user_id`. `GET /api/audits/recent` and shareable reports stay public, but only the creator can mutate their own audit.
+
+**Shared secret on the internal broadcast route** — the worker pushes events to the browser via `POST /internal/broadcast` on the API, but the API's port is reachable from outside the docker network too (the browser talks to it directly). That route requires an `INTERNAL_SECRET` header rather than trusting network placement alone.

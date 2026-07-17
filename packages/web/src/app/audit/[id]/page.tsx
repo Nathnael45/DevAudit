@@ -1,12 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuditStream } from '@/hooks/useAuditStream';
 import ThoughtLog from '@/components/ThoughtLog';
 import FindingCard from '@/components/FindingCard';
 import ResizablePanel from '@/components/ResizablePanel';
 import Link from 'next/link';
+import { getOwnerToken } from '@/lib/ownerTokens';
 
 function getApiUrl() {
   return `${window.location.protocol}//${window.location.hostname}:3001`;
@@ -26,10 +27,15 @@ export default function AuditPage({ params }: { params: { id: string } }) {
 
   const severityOrder = ['critical', 'high', 'medium', 'low', 'info'];
   const isActive = status === 'queued' || status === 'running' || status === 'connecting';
+  const [ownerToken, setOwnerToken] = useState<string | null>(null);
+  useEffect(() => setOwnerToken(getOwnerToken(id)), [id]);
 
   async function handleCancel() {
     setCancelling(true);
-    await fetch(`${getApiUrl()}/api/audits/${id}/cancel`, { method: 'POST' });
+    await fetch(`${getApiUrl()}/api/audits/${id}/cancel`, {
+      method: 'POST',
+      headers: ownerToken ? { 'X-Owner-Token': ownerToken } : undefined,
+    });
     router.push('/');
   }
 
@@ -64,7 +70,7 @@ export default function AuditPage({ params }: { params: { id: string } }) {
               View Report →
             </Link>
           )}
-          {isActive && (
+          {isActive && ownerToken && (
             <button
               onClick={handleCancel}
               disabled={cancelling}

@@ -6,7 +6,8 @@ export const reportsRouter = Router();
 // GET /api/reports/:slug — public shareable report by slug
 reportsRouter.get('/:slug', async (req, res) => {
   const audit = await db.query(
-    'SELECT * FROM audits WHERE public_slug = $1 AND status = $2',
+    `SELECT id, user_id, repo_url, status, public_slug, created_at, completed_at
+     FROM audits WHERE public_slug = $1 AND status = $2`,
     [req.params.slug, 'done']
   );
   if (!audit.rows[0]) { res.status(404).json({ error: 'Report not found' }); return; }
