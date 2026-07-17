@@ -18,6 +18,23 @@ async function timed<T>(fn: () => Promise<T>): Promise<[T, number]> {
   return [result, Date.now() - start];
 }
 
+// Claude's response ends with a <findings>[...]</findings> block containing the
+// structured JSON array; everything before it is the narrated analysis/summary.
+export function extractFindings(fullText: string): { findings: any[]; parseFailed: boolean } {
+  const findingsMatch = fullText.match(/<findings>([\s\S]*?)<\/findings>/);
+  if (!findingsMatch) return { findings: [], parseFailed: false };
+
+  try {
+    return { findings: JSON.parse(findingsMatch[1].trim()), parseFailed: false };
+  } catch {
+    return { findings: [], parseFailed: true };
+  }
+}
+
+export function isOverloadedError(err: any): boolean {
+  return Boolean(err?.error?.error?.type === 'overloaded_error' || err?.message?.includes('overloaded'));
+}
+
 export async function runAudit({ auditId, repoUrl }: { auditId: string; repoUrl: string }) {
   const timings: Record<string, number> = {};
 
@@ -154,9 +171,7 @@ Please analyze these findings, think through each one carefully, identify real v
         }
         break; // success — exit retry loop
       } catch (err: any) {
-        const isOverloaded = err?.error?.error?.type === 'overloaded_error' ||
-          err?.message?.includes('overloaded');
-        if (isOverloaded && attempt < MAX_RETRIES) {
+        if (isOverloadedError(err) && attempt < MAX_RETRIES) {
           const waitMs = (attempt + 1) * 15000; // 15s, 30s, 45s
           await thought(`API overloaded. Retrying in ${waitMs / 1000}s... (attempt ${attempt + 1}/${MAX_RETRIES})`);
           await new Promise(res => setTimeout(res, waitMs));
@@ -171,15 +186,9 @@ Please analyze these findings, think through each one carefully, identify real v
     timings.aiMs = Date.now() - aiStart;
 
     // 5. Parse findings from Claude's response
-    const findingsMatch = fullText.match(/<findings>([\s\S]*?)<\/findings>/);
-    let parsedFindings: any[] = [];
-
-    if (findingsMatch) {
-      try {
-        parsedFindings = JSON.parse(findingsMatch[1].trim());
-      } catch {
-        await thought('Warning: could not parse structured findings from AI response.');
-      }
+    const { findings: parsedFindings, parseFailed } = extractFindings(fullText);
+    if (parseFailed) {
+      await thought('Warning: could not parse structured findings from AI response.');
     }
 
     await thought(`AI analysis complete. Saving ${parsedFindings.length} confirmed findings...`);
