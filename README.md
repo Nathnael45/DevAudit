@@ -1,10 +1,12 @@
 # DevAudit
 
+[![CI](https://github.com/Nathnael45/DevAudit/actions/workflows/ci.yml/badge.svg)](https://github.com/Nathnael45/DevAudit/actions/workflows/ci.yml)
+
 **Autonomous AI security auditing agent for GitHub repositories.**
 
 Drop a GitHub URL and watch the AI clone the repo, run static analysis, and reason through vulnerabilities in real time — streaming every thought to your browser as it works.
 
-🔗 **Live demo:** [http://34.239.164.89:3000](http://34.239.164.89:3000)
+🔗 **Live demo:** [http://3.238.180.25:3000](http://3.238.180.25:3000)
 
 ### Sample reports
 
