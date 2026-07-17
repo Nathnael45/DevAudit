@@ -2,9 +2,13 @@ FROM node:20-alpine AS base
 WORKDIR /app
 
 # Install semgrep + bandit + gitleaks
+# TARGETARCH is set automatically by buildx (amd64 | arm64) — lets this image run
+# on Graviton (t4g/arm64) instances too, not just x86.
+ARG TARGETARCH
 RUN apk add --no-cache python3 py3-pip git curl && \
     pip3 install semgrep bandit --break-system-packages && \
-    curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.18.4/gitleaks_8.18.4_linux_x64.tar.gz \
+    GITLEAKS_ARCH=$([ "$TARGETARCH" = "arm64" ] && echo "arm64" || echo "x64") && \
+    curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v8.18.4/gitleaks_8.18.4_linux_${GITLEAKS_ARCH}.tar.gz" \
     | tar -xz -C /usr/local/bin gitleaks
 
 FROM base AS deps
