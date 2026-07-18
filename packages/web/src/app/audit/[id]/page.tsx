@@ -8,10 +8,7 @@ import FindingCard from '@/components/FindingCard';
 import ResizablePanel from '@/components/ResizablePanel';
 import Link from 'next/link';
 import { getOwnerToken } from '@/lib/ownerTokens';
-
-function getApiUrl() {
-  return `${window.location.protocol}//${window.location.hostname}:3001`;
-}
+import { getApiUrl } from '@/lib/apiUrl';
 
 export default function AuditPage({ params }: { params: { id: string } }) {
   const { id } = params;

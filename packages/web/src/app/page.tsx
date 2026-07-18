@@ -4,10 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { saveOwnerToken } from '@/lib/ownerTokens';
-
-function getApiUrl() {
-  return `${window.location.protocol}//${window.location.hostname}:3001`;
-}
+import { getApiUrl } from '@/lib/apiUrl';
 
 const STATUS_STYLES: Record<string, string> = {
   done: 'text-green-400 bg-green-400/10 border-green-400/20',

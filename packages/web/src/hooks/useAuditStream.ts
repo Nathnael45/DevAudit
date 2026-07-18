@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { getApiUrl, getWsUrl } from '@/lib/apiUrl';
 
 export type EventType = 'thought' | 'thinking_delta' | 'text_delta' | 'finding' | 'summary' | 'status' | 'error';
 
@@ -26,16 +27,6 @@ export interface Finding {
 }
 
 export type AuditStatus = 'connecting' | 'queued' | 'running' | 'done' | 'failed' | 'disconnected';
-
-function getApiUrl() {
-  if (typeof window === 'undefined') return 'http://localhost:3001';
-  return `${window.location.protocol}//${window.location.hostname}:3001`;
-}
-
-function getWsUrl() {
-  if (typeof window === 'undefined') return 'ws://localhost:3001';
-  return `ws://${window.location.hostname}:3001`;
-}
 
 export function useAuditStream(auditId: string) {
   const [events, setEvents] = useState<StreamEvent[]>([]);

@@ -126,6 +126,15 @@ usually remember):
    (e.g. `http://your-server-ip:3000`), it defaults to `http://localhost:3000`
    — meaning the real frontend will suddenly get CORS errors calling the API
    until you set it correctly and run `docker compose up -d api`.
+4. **The frontend no longer hardcodes `${hostname}:3001`** — it now reads
+   `NEXT_PUBLIC_API_URL`/`NEXT_PUBLIC_WS_URL`, baked in at *build* time (not
+   read at container runtime, so `docker compose up -d` alone won't pick up a
+   change — needs `--build`). **Check `.env` on the server before
+   redeploying**: if either var is set to something stale (e.g. a leftover
+   `YOUR_EC2_IP` placeholder), that broken value gets permanently baked into
+   the bundle. Leaving both blank is almost always what you want — it
+   preserves the automatic same-host detection that lets the demo survive an
+   IP change without a rebuild.
 
 ---
 
