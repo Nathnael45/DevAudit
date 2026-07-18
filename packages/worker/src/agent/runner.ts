@@ -35,6 +35,27 @@ export function isOverloadedError(err: any): boolean {
   return Boolean(err?.error?.error?.type === 'overloaded_error' || err?.message?.includes('overloaded'));
 }
 
+// Noisy real-world repos can return thousands of raw findings (a large Python
+// codebase can easily produce several thousand Bandit hits), so only a bounded
+// slice gets forwarded to the AI to keep the prompt focused and cost
+// predictable. Sorting by severity first means that slice is the most
+// important findings rather than whatever order the tool happened to emit
+// them in (typically file order).
+export const SEMGREP_SEVERITY_RANK: Record<string, number> = { ERROR: 0, WARNING: 1, INFO: 2 };
+export const BANDIT_SEVERITY_RANK: Record<string, number> = { HIGH: 0, MEDIUM: 1, LOW: 2 };
+
+export function sortBySeverityRank<T>(findings: T[], severityOf: (f: T) => string, rank: Record<string, number>): T[] {
+  return [...findings].sort((a, b) => (rank[severityOf(a)] ?? 99) - (rank[severityOf(b)] ?? 99));
+}
+
+// Makes truncation visible to whoever's watching the live thought stream,
+// instead of silently reviewing an arbitrary subset of the raw findings.
+export function foundMessage(tool: string, count: number, limit: number, unit: string): string {
+  return count > limit
+    ? `${tool} found ${count} potential ${unit} — reviewing the ${limit} highest-severity for deep analysis.`
+    : `${tool} found ${count} potential ${unit}.`;
+}
+
 export async function runAudit({ auditId, repoUrl }: { auditId: string; repoUrl: string }) {
   const timings: Record<string, number> = {};
 
@@ -74,21 +95,28 @@ export async function runAudit({ auditId, repoUrl }: { auditId: string; repoUrl:
     timings.banditMs = banditMs;
     timings.gitleaksMs = gitleaksMs;
 
-    await thought(`Semgrep found ${semgrepFindings.length} potential issues.`);
-    await thought(`Bandit found ${banditFindings.length} potential issues.`);
-    await thought(`Gitleaks found ${gitleaksFindings.length} potential secrets.`);
+    const SEMGREP_LIMIT = 30;
+    const BANDIT_LIMIT = 30;
+    const GITLEAKS_LIMIT = 20;
+
+    const sortedSemgrep = sortBySeverityRank(semgrepFindings, f => f.extra.severity, SEMGREP_SEVERITY_RANK);
+    const sortedBandit = sortBySeverityRank(banditFindings, f => f.issue_severity, BANDIT_SEVERITY_RANK);
+
+    await thought(foundMessage('Semgrep', semgrepFindings.length, SEMGREP_LIMIT, 'issues'));
+    await thought(foundMessage('Bandit', banditFindings.length, BANDIT_LIMIT, 'issues'));
+    await thought(foundMessage('Gitleaks', gitleaksFindings.length, GITLEAKS_LIMIT, 'secrets'));
     await thought(`Passing findings to AI for deep analysis...`);
 
     // 3. Build context for Claude
-    const semgrepSummary = semgrepFindings.slice(0, 30).map(f =>
+    const semgrepSummary = sortedSemgrep.slice(0, SEMGREP_LIMIT).map(f =>
       `[${f.check_id}] ${f.path}:${f.start.line} — ${f.extra.message} (${f.extra.severity})`
     ).join('\n');
 
-    const banditSummary = banditFindings.slice(0, 30).map(f =>
+    const banditSummary = sortedBandit.slice(0, BANDIT_LIMIT).map(f =>
       `[${f.test_id}/${f.test_name}] ${f.filename}:${f.line_number} — ${f.issue_text} (severity: ${f.issue_severity}, confidence: ${f.issue_confidence})`
     ).join('\n');
 
-    const gitleaksSummary = gitleaksFindings.slice(0, 20).map(f =>
+    const gitleaksSummary = gitleaksFindings.slice(0, GITLEAKS_LIMIT).map(f =>
       `[${f.RuleID}] ${f.File}:${f.StartLine} — ${f.Description} (match: ${f.Match.slice(0, 40)}...)`
     ).join('\n');
 
