@@ -177,7 +177,14 @@ Please analyze these findings, think through each one carefully, identify real v
       try {
         const stream = anthropic.messages.stream({
           model: 'claude-sonnet-5',
-          max_tokens: 8000,
+          // 8000 was silently truncating full findings JSON on noisy repos —
+          // e.g. mitmproxy's response was cut off mid-<findings> block with
+          // zero findings saved despite genuine analysis underway (narration
+          // alone reasoning through ~80 candidate findings can run well past
+          // 8000 tokens). Sonnet 5 supports up to 128K output with streaming
+          // (already the case here via .stream()); 32000 gives real headroom
+          // without leaving the ceiling unbounded.
+          max_tokens: 32000,
           thinking: { type: 'adaptive' } as any,
           system: systemPrompt,
           messages: [{ role: 'user', content: userMessage }],
