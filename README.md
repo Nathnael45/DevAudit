@@ -121,6 +121,11 @@ usually remember):
      -c "ALTER USER devaudit WITH PASSWORD '<value of POSTGRES_PASSWORD in .env>';"
    docker compose restart api worker
    ```
+3. **CORS is now restricted to `WEB_URL` instead of allowing any origin.** If
+   `.env` doesn't set `WEB_URL` to wherever the web app is actually reachable
+   (e.g. `http://your-server-ip:3000`), it defaults to `http://localhost:3000`
+   — meaning the real frontend will suddenly get CORS errors calling the API
+   until you set it correctly and run `docker compose up -d api`.
 
 ---
 
@@ -137,6 +142,7 @@ usually remember):
 | `NEXT_PUBLIC_API_URL` | API base URL (browser-facing) |
 | `NEXT_PUBLIC_WS_URL` | WebSocket base URL (browser-facing) |
 | `INTERNAL_API_URL` | API base URL (server-side, uses Docker hostname) |
+| `WEB_URL` | The only origin the API's CORS policy allows — must match wherever `web` is actually served |
 
 ---
 

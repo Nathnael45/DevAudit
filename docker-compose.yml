@@ -40,7 +40,9 @@ services:
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
       INTERNAL_SECRET: ${INTERNAL_SECRET:?set INTERNAL_SECRET in .env}
       PORT: 3001
-      WEB_URL: http://localhost:3000
+      # CORS is restricted to this origin (see app.ts) — must match wherever
+      # the web app is actually reachable, not just the local default.
+      WEB_URL: ${WEB_URL:-http://localhost:3000}
     depends_on:
       postgres:
         condition: service_healthy

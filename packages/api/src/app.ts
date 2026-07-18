@@ -8,7 +8,12 @@ import { internalRouter } from './routes/internal';
 
 const app = express();
 
-app.use(cors({ origin: '*' }));
+// Restrict to the actual frontend origin rather than '*' — audits can carry an
+// Authorization bearer token, and a wildcard origin means any site's JS could
+// read authenticated responses if a token ever ended up somewhere a browser
+// would send it automatically. WEB_URL must match wherever the web app is
+// actually served (see docker-compose.yml / .env.example).
+app.use(cors({ origin: process.env.WEB_URL || 'http://localhost:3000' }));
 app.use(express.json());
 
 const isLocalhost = (req: express.Request) =>
