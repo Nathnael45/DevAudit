@@ -46,6 +46,42 @@ auditRouter.get('/recent', async (_req, res) => {
   res.json({ audits: result.rows });
 });
 
+const claimSchema = z.object({
+  audits: z.array(z.object({
+    auditId: z.string(),
+    ownerToken: z.string(),
+  })).max(100),
+});
+
+// POST /api/audits/claim — attach anonymously-created audits to the logged-in
+// account. Proof of ownership is the same owner token used for delete/cancel —
+// this doesn't grant anything a visitor couldn't already do to that audit.
+auditRouter.post('/claim', requireAuth, async (req: AuthRequest, res) => {
+  const parsed = claimSchema.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
+
+  const results: { auditId: string; status: 'claimed' | 'already_yours' | 'not_found' | 'invalid_token' }[] = [];
+
+  for (const { auditId, ownerToken } of parsed.data.audits) {
+    if (!UUID_RE.test(auditId)) { results.push({ auditId, status: 'not_found' }); continue; }
+
+    const result = await db.query('SELECT user_id, owner_token_hash FROM audits WHERE id = $1', [auditId]);
+    const audit = result.rows[0];
+    if (!audit) { results.push({ auditId, status: 'not_found' }); continue; }
+
+    if (audit.user_id === req.userId) { results.push({ auditId, status: 'already_yours' }); continue; }
+    if (audit.user_id) { results.push({ auditId, status: 'invalid_token' }); continue; } // already claimed by someone else
+
+    const tokenMatches = audit.owner_token_hash && await bcrypt.compare(ownerToken, audit.owner_token_hash);
+    if (!tokenMatches) { results.push({ auditId, status: 'invalid_token' }); continue; }
+
+    await db.query('UPDATE audits SET user_id = $1 WHERE id = $2', [req.userId, auditId]);
+    results.push({ auditId, status: 'claimed' });
+  }
+
+  res.json({ results });
+});
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // Only the creator (matching account, or matching owner token) may cancel/delete.

@@ -154,6 +154,97 @@ describe('POST /api/audits/:id/cancel', () => {
   });
 });
 
+describe('POST /api/audits/claim', () => {
+  it('requires authentication', async () => {
+    const { auditId, ownerToken } = await createAudit();
+    const res = await request(app).post('/api/audits/claim').send({ audits: [{ auditId, ownerToken }] });
+    expect(res.status).toBe(401);
+  });
+
+  it('attaches an anonymous audit to the account when the owner token matches', async () => {
+    const { auditId, ownerToken } = await createAudit();
+    const userId = await createUser('claimer@example.com');
+
+    const res = await request(app)
+      .post('/api/audits/claim')
+      .set('Authorization', `Bearer ${tokenFor(userId)}`)
+      .send({ audits: [{ auditId, ownerToken }] });
+
+    expect(res.status).toBe(200);
+    expect(res.body.results).toEqual([{ auditId, status: 'claimed' }]);
+
+    const stored = await db.query('SELECT user_id FROM audits WHERE id = $1', [auditId]);
+    expect(stored.rows[0].user_id).toBe(userId);
+  });
+
+  it('reports invalid_token rather than claiming when the token is wrong', async () => {
+    const { auditId } = await createAudit();
+    const userId = await createUser('claimer2@example.com');
+
+    const res = await request(app)
+      .post('/api/audits/claim')
+      .set('Authorization', `Bearer ${tokenFor(userId)}`)
+      .send({ audits: [{ auditId, ownerToken: 'totally-wrong' }] });
+
+    expect(res.body.results).toEqual([{ auditId, status: 'invalid_token' }]);
+    const stored = await db.query('SELECT user_id FROM audits WHERE id = $1', [auditId]);
+    expect(stored.rows[0].user_id).toBeNull();
+  });
+
+  it('does not let a second account claim an audit someone else already claimed', async () => {
+    const { auditId, ownerToken } = await createAudit();
+    const firstUserId = await createUser('first@example.com');
+    const secondUserId = await createUser('second@example.com');
+
+    await request(app)
+      .post('/api/audits/claim')
+      .set('Authorization', `Bearer ${tokenFor(firstUserId)}`)
+      .send({ audits: [{ auditId, ownerToken }] });
+
+    const res = await request(app)
+      .post('/api/audits/claim')
+      .set('Authorization', `Bearer ${tokenFor(secondUserId)}`)
+      .send({ audits: [{ auditId, ownerToken }] });
+
+    expect(res.body.results).toEqual([{ auditId, status: 'invalid_token' }]);
+    const stored = await db.query('SELECT user_id FROM audits WHERE id = $1', [auditId]);
+    expect(stored.rows[0].user_id).toBe(firstUserId);
+  });
+
+  it('reports already_yours (not an error) when re-claiming your own audit', async () => {
+    const userId = await createUser('reclaim@example.com');
+    const { auditId, ownerToken } = await createAudit(tokenFor(userId));
+
+    const res = await request(app)
+      .post('/api/audits/claim')
+      .set('Authorization', `Bearer ${tokenFor(userId)}`)
+      .send({ audits: [{ auditId, ownerToken }] });
+
+    expect(res.body.results).toEqual([{ auditId, status: 'already_yours' }]);
+  });
+
+  it('reports not_found for a nonexistent audit id without erroring the whole batch', async () => {
+    const userId = await createUser('batch@example.com');
+    const { auditId: realId, ownerToken } = await createAudit();
+
+    const res = await request(app)
+      .post('/api/audits/claim')
+      .set('Authorization', `Bearer ${tokenFor(userId)}`)
+      .send({
+        audits: [
+          { auditId: '00000000-0000-0000-0000-000000000000', ownerToken: 'x' },
+          { auditId: realId, ownerToken },
+        ],
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.results).toEqual([
+      { auditId: '00000000-0000-0000-0000-000000000000', status: 'not_found' },
+      { auditId: realId, status: 'claimed' },
+    ]);
+  });
+});
+
 describe('GET /api/audits (list mine)', () => {
   it('requires authentication', async () => {
     const res = await request(app).get('/api/audits');
