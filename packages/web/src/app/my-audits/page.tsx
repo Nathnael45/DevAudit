@@ -2,30 +2,46 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { getOwnerToken } from '@/lib/ownerTokens';
+import { getOwnerToken, getAllOwnedAudits } from '@/lib/ownerTokens';
 import { getApiUrl } from '@/lib/apiUrl';
+import { isLoggedIn, authHeaders } from '@/lib/auth';
 import { STATUS_STYLES } from '@/lib/statusStyles';
 
-export default function AuditsPage() {
+export default function MyAuditsPage() {
   const [audits, setAudits] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<string | null>(null);
-  const [ownerTokens, setOwnerTokens] = useState<Record<string, string>>({});
+  const [loggedIn, setLoggedIn] = useState(false);
 
   useEffect(() => {
-    fetch(`${getApiUrl()}/api/audits/recent`)
-      .then(r => r.json())
-      .then(d => {
-        const audits = d.audits ?? [];
-        setAudits(audits);
-        // Only audits this browser created (and still has the token for) are deletable.
-        const tokens: Record<string, string> = {};
-        for (const audit of audits) {
-          const token = getOwnerToken(audit.id);
-          if (token) tokens[audit.id] = token;
-        }
-        setOwnerTokens(tokens);
-      })
-      .catch(() => {});
+    const loggedInNow = isLoggedIn();
+    setLoggedIn(loggedInNow);
+
+    if (loggedInNow) {
+      fetch(`${getApiUrl()}/api/audits`, { headers: authHeaders() })
+        .then(r => r.json())
+        .then(d => setAudits(d.audits ?? []))
+        .catch(() => {})
+        .finally(() => setLoading(false));
+      return;
+    }
+
+    const owned = getAllOwnedAudits();
+    if (owned.length === 0) { setLoading(false); return; }
+
+    Promise.all(
+      owned.map(({ auditId }) =>
+        fetch(`${getApiUrl()}/api/audits/${auditId}`)
+          .then(r => (r.ok ? r.json() : null))
+          .then(d => d?.audit ?? null)
+          .catch(() => null)
+      )
+    ).then(results => {
+      const found = results.filter((a): a is NonNullable<typeof a> => a !== null);
+      found.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      setAudits(found);
+      setLoading(false);
+    });
   }, []);
 
   async function handleDelete(e: React.MouseEvent, auditId: string) {
@@ -33,10 +49,14 @@ export default function AuditsPage() {
     e.stopPropagation();
     if (!confirm('Delete this audit?')) return;
     setDeleting(auditId);
-    await fetch(`${getApiUrl()}/api/audits/${auditId}`, {
-      method: 'DELETE',
-      headers: { 'X-Owner-Token': ownerTokens[auditId] },
-    });
+
+    const headers: Record<string, string> = loggedIn ? authHeaders() : {};
+    if (!loggedIn) {
+      const ownerToken = getOwnerToken(auditId);
+      if (ownerToken) headers['X-Owner-Token'] = ownerToken;
+    }
+
+    await fetch(`${getApiUrl()}/api/audits/${auditId}`, { method: 'DELETE', headers });
     setAudits(prev => prev.filter(a => a.id !== auditId));
     setDeleting(null);
   }
@@ -44,11 +64,23 @@ export default function AuditsPage() {
   return (
     <div className="max-w-4xl mx-auto px-6 py-12">
       <div className="flex items-center justify-between mb-8">
-        <h1 className="text-2xl font-bold">Recent Audits</h1>
+        <div>
+          <h1 className="text-2xl font-bold">My Audits</h1>
+          <p className="text-terminal-muted text-sm mt-1">
+            {loggedIn ? 'Tied to your account.' : 'From this browser only.'}
+          </p>
+        </div>
         <Link href="/" className="text-sm text-terminal-green hover:underline">+ New Audit</Link>
       </div>
 
-      {audits.length === 0 && (
+      {!loggedIn && !loading && audits.length > 0 && (
+        <div className="mb-6 px-4 py-3 bg-terminal-surface border border-terminal-border rounded-lg text-sm text-terminal-muted">
+          These audits only exist in this browser.{' '}
+          <Link href="/register" className="text-terminal-green hover:underline">Create an account</Link> to keep them if you clear your browser data or switch devices.
+        </div>
+      )}
+
+      {!loading && audits.length === 0 && (
         <div className="text-center py-20 text-terminal-muted">
           <p className="text-lg">No audits yet.</p>
           <Link href="/" className="text-terminal-green hover:underline mt-2 inline-block">Run your first audit →</Link>
@@ -81,16 +113,14 @@ export default function AuditsPage() {
                 </div>
               </div>
             </Link>
-            {ownerTokens[audit.id] && (
-              <button
-                onClick={(e) => handleDelete(e, audit.id)}
-                disabled={deleting === audit.id}
-                className="shrink-0 p-3 text-terminal-muted hover:text-terminal-red transition-colors disabled:opacity-50"
-                title="Delete audit"
-              >
-                {deleting === audit.id ? '...' : '✕'}
-              </button>
-            )}
+            <button
+              onClick={(e) => handleDelete(e, audit.id)}
+              disabled={deleting === audit.id}
+              className="shrink-0 p-3 text-terminal-muted hover:text-terminal-red transition-colors disabled:opacity-50"
+              title="Delete audit"
+            >
+              {deleting === audit.id ? '...' : '✕'}
+            </button>
           </div>
         ))}
       </div>

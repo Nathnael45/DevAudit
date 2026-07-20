@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { saveOwnerToken, getOwnerToken, clearOwnerToken } from './ownerTokens';
+import { saveOwnerToken, getOwnerToken, clearOwnerToken, getAllOwnedAudits } from './ownerTokens';
 
 beforeEach(() => {
   localStorage.clear();
@@ -39,6 +39,38 @@ describe('clearOwnerToken', () => {
 
   it('does nothing (and does not throw) when there was nothing to clear', () => {
     expect(() => clearOwnerToken('never-saved')).not.toThrow();
+  });
+});
+
+describe('getAllOwnedAudits', () => {
+  it('returns an empty array when nothing has been saved', () => {
+    expect(getAllOwnedAudits()).toEqual([]);
+  });
+
+  it('lists every audit this browser holds a token for', () => {
+    saveOwnerToken('audit-1', 'token-1');
+    saveOwnerToken('audit-2', 'token-2');
+
+    const owned = getAllOwnedAudits();
+    expect(owned).toHaveLength(2);
+    expect(owned).toContainEqual({ auditId: 'audit-1', token: 'token-1' });
+    expect(owned).toContainEqual({ auditId: 'audit-2', token: 'token-2' });
+  });
+
+  it('drops an audit from the list once its token is cleared', () => {
+    saveOwnerToken('audit-1', 'token-1');
+    saveOwnerToken('audit-2', 'token-2');
+    clearOwnerToken('audit-1');
+
+    expect(getAllOwnedAudits()).toEqual([{ auditId: 'audit-2', token: 'token-2' }]);
+  });
+
+  it('ignores unrelated localStorage keys from other parts of the app', () => {
+    saveOwnerToken('audit-1', 'token-1');
+    localStorage.setItem('devaudit_jwt', 'unrelated-jwt');
+    localStorage.setItem('some_other_key', 'unrelated-value');
+
+    expect(getAllOwnedAudits()).toEqual([{ auditId: 'audit-1', token: 'token-1' }]);
   });
 });
 

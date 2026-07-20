@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import AuthNav from '@/components/AuthNav';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -20,9 +21,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               Audits
             </Link>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-terminal-green animate-pulse" />
-            <span className="text-terminal-muted text-xs">live</span>
+          <div className="flex items-center gap-6">
+            <AuthNav />
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-terminal-green animate-pulse" />
+              <span className="text-terminal-muted text-xs">live</span>
+            </div>
           </div>
         </nav>
         <main>{children}</main>

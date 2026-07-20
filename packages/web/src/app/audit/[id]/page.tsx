@@ -9,6 +9,7 @@ import ResizablePanel from '@/components/ResizablePanel';
 import Link from 'next/link';
 import { getOwnerToken } from '@/lib/ownerTokens';
 import { getApiUrl } from '@/lib/apiUrl';
+import { isLoggedIn, authHeaders } from '@/lib/auth';
 
 export default function AuditPage({ params }: { params: { id: string } }) {
   const { id } = params;
@@ -25,14 +26,17 @@ export default function AuditPage({ params }: { params: { id: string } }) {
   const severityOrder = ['critical', 'high', 'medium', 'low', 'info'];
   const isActive = status === 'queued' || status === 'running' || status === 'connecting';
   const [ownerToken, setOwnerToken] = useState<string | null>(null);
-  useEffect(() => setOwnerToken(getOwnerToken(id)), [id]);
+  const [loggedIn, setLoggedIn] = useState(false);
+  useEffect(() => {
+    setOwnerToken(getOwnerToken(id));
+    setLoggedIn(isLoggedIn());
+  }, [id]);
 
   async function handleCancel() {
     setCancelling(true);
-    await fetch(`${getApiUrl()}/api/audits/${id}/cancel`, {
-      method: 'POST',
-      headers: ownerToken ? { 'X-Owner-Token': ownerToken } : undefined,
-    });
+    const headers: Record<string, string> = { ...authHeaders() };
+    if (ownerToken) headers['X-Owner-Token'] = ownerToken;
+    await fetch(`${getApiUrl()}/api/audits/${id}/cancel`, { method: 'POST', headers });
     router.push('/');
   }
 
@@ -67,7 +71,7 @@ export default function AuditPage({ params }: { params: { id: string } }) {
               View Report →
             </Link>
           )}
-          {isActive && ownerToken && (
+          {isActive && (ownerToken || loggedIn) && (
             <button
               onClick={handleCancel}
               disabled={cancelling}

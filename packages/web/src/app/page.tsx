@@ -5,13 +5,8 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { saveOwnerToken } from '@/lib/ownerTokens';
 import { getApiUrl } from '@/lib/apiUrl';
-
-const STATUS_STYLES: Record<string, string> = {
-  done: 'text-green-400 bg-green-400/10 border-green-400/20',
-  running: 'text-blue-400 bg-blue-400/10 border-blue-400/20',
-  queued: 'text-yellow-400 bg-yellow-400/10 border-yellow-400/20',
-  failed: 'text-red-400 bg-red-400/10 border-red-400/20',
-};
+import { STATUS_STYLES } from '@/lib/statusStyles';
+import { authHeaders } from '@/lib/auth';
 
 export default function HomePage() {
   const router = useRouter();
@@ -35,7 +30,7 @@ export default function HomePage() {
     try {
       const res = await fetch(`${getApiUrl()}/api/audits`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({ repoUrl }),
       });
 
