@@ -10,5 +10,6 @@ dist/
 .turbo/
 coverage/
 *.tsbuildinfo
+next-env.d.ts
 /tmp/
 /repos/

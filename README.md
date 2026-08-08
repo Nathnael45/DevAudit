@@ -6,15 +6,15 @@
 
 Drop a GitHub URL and watch the AI clone the repo, run static analysis, and reason through vulnerabilities in real time — streaming every thought to your browser as it works.
 
-🔗 **Live demo:** [http://3.238.180.25:3000](http://3.238.180.25:3000)
+🔗 **Live demo:** [https://devaudit.nathnaeltesfaw.dev](https://devaudit.nathnaeltesfaw.dev)
 
 ### Sample reports
 
 | Repository | Report | Notes |
 |------------|--------|-------|
-| [mitmproxy/mitmproxy](https://github.com/mitmproxy/mitmproxy) | [View report](http://3.238.180.25:3000/report/449f35ae) | 17 confirmed findings, incl. a high-severity GitHub Actions shell-injection issue |
-| [sherlock-project/sherlock](https://github.com/sherlock-project/sherlock) | [View report](http://3.238.180.25:3000/report/c5f0333e) | 56 raw scanner hits triaged down to 0 real findings |
-| [OWASP/WebGoat](https://github.com/WebGoat/WebGoat) | [View report](http://3.238.180.25:3000/report/8027ee44) | 188 raw Semgrep hits reviewed, 13 confirmed findings |
+| [mitmproxy/mitmproxy](https://github.com/mitmproxy/mitmproxy) | [View report](https://devaudit.nathnaeltesfaw.dev/report/449f35ae) | 17 confirmed findings, incl. a high-severity GitHub Actions shell-injection issue |
+| [sherlock-project/sherlock](https://github.com/sherlock-project/sherlock) | [View report](https://devaudit.nathnaeltesfaw.dev/report/c5f0333e) | 56 raw scanner hits triaged down to 0 real findings |
+| [OWASP/WebGoat](https://github.com/WebGoat/WebGoat) | [View report](https://devaudit.nathnaeltesfaw.dev/report/8027ee44) | 188 raw Semgrep hits reviewed, 13 confirmed findings |
 
 ---
 
@@ -66,7 +66,7 @@ Browser
 | Static analysis | Semgrep, Bandit, Gitleaks |
 | Queue | BullMQ + Redis |
 | Database | PostgreSQL |
-| Deployment | Docker Compose, AWS EC2 |
+| Deployment | Docker Compose, AWS EC2, Cloudflare Tunnel (HTTPS, no exposed ports) |
 
 ---
 
@@ -123,7 +123,7 @@ usually remember):
    ```
 3. **CORS is now restricted to `WEB_URL` instead of allowing any origin.** If
    `.env` doesn't set `WEB_URL` to wherever the web app is actually reachable
-   (e.g. `http://your-server-ip:3000`), it defaults to `http://localhost:3000`
+   (e.g. `https://your-domain.com`), it defaults to `http://localhost:3000`
    — meaning the real frontend will suddenly get CORS errors calling the API
    until you set it correctly and run `docker compose up -d api`.
 4. **The frontend no longer hardcodes `${hostname}:3001`** — it now reads
@@ -170,3 +170,5 @@ usually remember):
 **Shared secret on the internal broadcast route** — the worker pushes events to the browser via `POST /internal/broadcast` on the API, but the API's port is reachable from outside the docker network too (the browser talks to it directly). That route requires an `INTERNAL_SECRET` header rather than trusting network placement alone.
 
 **Per-phase timing, not just config constants** — each audit records clone/scan/AI durations (`audits.timings`), with each of the three scanners timed individually even though they run concurrently. That's what makes it possible to state an honest parallelism payoff (parallel wall-clock vs. the sum of the three durations run serially) instead of just describing the setting (`concurrency: 3`) and assuming it helped.
+
+**Flat subdomains, not nested ones** — the API is served from `devaudit-api.nathnaeltesfaw.dev` rather than the more obvious `api.devaudit.nathnaeltesfaw.dev`. Cloudflare's free Universal SSL certificate only covers the bare domain plus one level of wildcard (`*.nathnaeltesfaw.dev`); a second nested level has no matching certificate at the edge and fails the TLS handshake before the request ever reaches the tunnel. Keeping both hostnames one level deep avoids paying for Advanced Certificate Manager just for a demo.
