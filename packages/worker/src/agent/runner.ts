@@ -251,7 +251,7 @@ Please analyze these findings, think through each one carefully, identify real v
     // 8. Done
     await updateAuditTimings(auditId, timings);
     await updateAuditStatus(auditId, 'done');
-    await cleanupRepo(auditId);
+    await safeCleanup(auditId);
     emit(auditId, 'status', { status: 'done' });
     await thought(`Audit complete. Found ${parsedFindings.length} vulnerabilities.`);
 
@@ -261,7 +261,18 @@ Please analyze these findings, think through each one carefully, identify real v
     await saveEvent(auditId, 'error', err.message ?? 'Unknown error');
     await updateAuditStatus(auditId, 'failed');
     emit(auditId, 'status', { status: 'failed', error: err.message });
-    await cleanupRepo(auditId);
+    await safeCleanup(auditId);
     throw err;
+  }
+}
+
+// Disk cleanup is best-effort — a leftover clone directory costs disk space,
+// but letting its failure propagate would overwrite a status we already
+// committed (e.g. turning a completed 'done' audit into a false 'failed').
+async function safeCleanup(auditId: string) {
+  try {
+    await cleanupRepo(auditId);
+  } catch (err) {
+    console.error(`[agent][${auditId}] cleanup failed (non-fatal):`, err);
   }
 }

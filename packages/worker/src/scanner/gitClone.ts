@@ -25,5 +25,9 @@ export async function cloneRepo(auditId: string, repoUrl: string): Promise<strin
 
 export async function cleanupRepo(auditId: string) {
   const dest = path.join(REPOS_DIR, auditId);
-  await fs.rm(dest, { recursive: true, force: true });
+  // A killed scanner process (e.g. Semgrep hitting its timeout) can still be
+  // flushing writes into this tree for a brief moment after we decide to clean
+  // up, which races fs.rm's recursive walk and throws a spurious ENOTEMPTY —
+  // a known Node quirk, hence the built-in retry knobs rather than a custom loop.
+  await fs.rm(dest, { recursive: true, force: true, maxRetries: 3, retryDelay: 200 });
 }
