@@ -15,10 +15,17 @@ const startSchema = z.object({
   repoUrl: z.string().url().regex(/github\.com/, 'Must be a GitHub URL'),
 });
 
+// Every other error response in this file is a plain string the frontend can
+// display as-is (`new Error(data.error)`); Zod's own error shape is a nested
+// object, which stringifies to "[object Object]" if sent as-is instead.
+function zodErrorMessage(error: z.ZodError): string {
+  return error.issues[0]?.message ?? 'Invalid request';
+}
+
 // POST /api/audits — start a new audit
 auditRouter.post('/', optionalAuth, async (req: AuthRequest, res) => {
   const parsed = startSchema.safeParse(req.body);
-  if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
+  if (!parsed.success) { res.status(400).json({ error: zodErrorMessage(parsed.error) }); return; }
 
   const auditId = uuidv4();
   const publicSlug = auditId.slice(0, 8);
@@ -58,7 +65,7 @@ const claimSchema = z.object({
 // this doesn't grant anything a visitor couldn't already do to that audit.
 auditRouter.post('/claim', requireAuth, async (req: AuthRequest, res) => {
   const parsed = claimSchema.safeParse(req.body);
-  if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
+  if (!parsed.success) { res.status(400).json({ error: zodErrorMessage(parsed.error) }); return; }
 
   const results: { auditId: string; status: 'claimed' | 'already_yours' | 'not_found' | 'invalid_token' }[] = [];
 

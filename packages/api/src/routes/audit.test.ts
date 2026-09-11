@@ -49,9 +49,12 @@ describe('POST /api/audits', () => {
     expect(stored.rows[0].owner_token_hash).not.toBe(res.body.ownerToken);
   });
 
-  it('rejects a non-GitHub URL with 400', async () => {
+  it('rejects a non-GitHub URL with 400 and a real string message, not a stringified error object', async () => {
     const res = await request(app).post('/api/audits').send({ repoUrl: 'https://example.com/foo/bar' });
     expect(res.status).toBe(400);
+    expect(typeof res.body.error).toBe('string');
+    expect(res.body.error).not.toBe('[object Object]');
+    expect(res.body.error).toBe('Must be a GitHub URL');
   });
 
   it("attaches the audit to the authenticated user's account when a valid token is provided", async () => {
