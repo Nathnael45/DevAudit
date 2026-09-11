@@ -8,6 +8,8 @@ Drop a GitHub URL and watch the AI clone the repo, run static analysis, and reas
 
 🔗 **Live demo:** [https://devaudit.nathnaeltesfaw.dev](https://devaudit.nathnaeltesfaw.dev)
 
+![DevAudit live audit view — AI reasoning streaming next to findings as they're found](docs/demo.gif)
+
 ### Sample reports
 
 | Repository | Report | Notes |
@@ -56,6 +58,41 @@ Browser
 
 ---
 
+## Key design decisions
+
+**Observable agent loop** — the core differentiator. Rather than returning a finished report, every step of the AI's reasoning streams live to the browser. Users watch the agent think ("Semgrep found 3 issues → analyzing for false positives → confirmed SQL injection at line 47").
+
+**HTTP broadcast over persistent WebSocket** — the worker pushes events to the API via HTTP POST (`/internal/broadcast`) rather than maintaining a persistent WebSocket connection, which proved unreliable across Docker networks. The API then fans out to browser clients.
+
+**Batched streaming** — Claude token deltas are buffered (300ms or 200 chars) before broadcasting to avoid flooding the HTTP broadcast endpoint with hundreds of tiny requests per second.
+
+**Shallow clone** — `git clone --depth 1` keeps clone times under 10 seconds for most repos and avoids storing full git history on disk.
+
+**Ownership without accounts** — most audits are started anonymously, but people still need to cancel or delete the ones they kicked off. Each audit gets a random owner token at creation time (returned once, held client-side); cancel/delete require that token or a matching authenticated `user_id`. `GET /api/audits/recent` and shareable reports stay public, but only the creator can mutate their own audit.
+
+**Shared secret on the internal broadcast route** — the worker pushes events to the browser via `POST /internal/broadcast` on the API, but the API's port is reachable from outside the docker network too (the browser talks to it directly). That route requires an `INTERNAL_SECRET` header rather than trusting network placement alone.
+
+**Per-phase timing, not just config constants** — each audit records clone/scan/AI durations (`audits.timings`), with each of the three scanners timed individually even though they run concurrently. That's what makes it possible to state an honest parallelism payoff (parallel wall-clock vs. the sum of the three durations run serially) instead of just describing the setting (`concurrency: 3`) and assuming it helped.
+
+**Flat subdomains, not nested ones** — the API is served from `devaudit-api.nathnaeltesfaw.dev` rather than the more obvious `api.devaudit.nathnaeltesfaw.dev`. Cloudflare's free Universal SSL certificate only covers the bare domain plus one level of wildcard (`*.nathnaeltesfaw.dev`); a second nested level has no matching certificate at the edge and fails the TLS handshake before the request ever reaches the tunnel. Keeping both hostnames one level deep avoids paying for Advanced Certificate Manager just for a demo.
+
+---
+
+## Testing
+
+102 automated tests (Vitest) across all three packages — 38 for the API (integration-tested against a real Postgres via `supertest`, not a mocked database), 33 for the frontend, 31 for the worker. GitHub Actions runs lint, typecheck, and the full suite — with a live Postgres service container — on every push.
+
+This isn't just a coverage number: the test suite has caught a real bug (a function that could silently return `undefined` instead of `false`), and every performance claim in this README is backed by a real query against production data rather than an estimate — see [Key design decisions](#key-design-decisions) above.
+
+---
+
+## Known limitations
+
+- **Static analysis is capped at 300 seconds.** Most repos finish well within that, but the largest monorepo-scale codebases (validated against real frameworks like Django, Rails, Angular, and Spring Boot) can hit that ceiling before Semgrep finishes, resulting in a partial rather than exhaustive scan. This is a known, currently-open constraint — not a silent failure. Raising the limit further trades off against tying up a worker slot longer on a resource-constrained host.
+- **Low-traffic demo, not a system validated at scale.** Timing and completion-rate numbers in this README come from deliberate test batches run against the live deployment, not from independent production traffic. They're real, reproducible measurements — just not evidence of behavior under concurrent real-world load.
+
+---
+
 ## Tech stack
 
 | Layer | Tech |
@@ -94,51 +131,12 @@ them, over the docker network. If you run `api`/`worker`/`web` natively via the 
 `npm run dev` script instead of the full compose stack, add a git-ignored
 `docker-compose.override.yml` that republishes `5432`/`6379` for your machine.
 
-**Upgrading an existing deployment** (verified against a real local volume that
-predated these changes — both steps were needed, not just the first one people
-usually remember):
-
-1. The `audits` table gained an `owner_token_hash` column (used to authorize audit
-   cancel/delete without requiring an account). `docker-entrypoint-initdb.d` only
-   runs on a fresh volume, so it won't apply automatically:
-   ```bash
-   docker compose exec postgres psql -U devaudit -d devaudit \
-     -c "ALTER TABLE audits ADD COLUMN IF NOT EXISTS owner_token_hash TEXT;"
-   ```
-   It also gained a `timings` column (per-phase clone/scan/AI durations, used to
-   back up the performance numbers below with real measurements instead of
-   config constants):
-   ```bash
-   docker compose exec postgres psql -U devaudit -d devaudit \
-     -c "ALTER TABLE audits ADD COLUMN IF NOT EXISTS timings JSONB;"
-   ```
-2. If your volume predates `POSTGRES_PASSWORD` being required (i.e. it was
-   initialized with the old hardcoded `devaudit`/`devaudit` credential), Postgres
-   keeps that password on disk — setting a new `POSTGRES_PASSWORD` in `.env` alone
-   won't rotate it, and `api`/`worker` will fail to connect. Update it to match:
-   ```bash
-   docker compose exec -e PGPASSWORD=devaudit postgres psql -U devaudit -d devaudit \
-     -c "ALTER USER devaudit WITH PASSWORD '<value of POSTGRES_PASSWORD in .env>';"
-   docker compose restart api worker
-   ```
-3. **CORS is now restricted to `WEB_URL` instead of allowing any origin.** If
-   `.env` doesn't set `WEB_URL` to wherever the web app is actually reachable
-   (e.g. `https://your-domain.com`), it defaults to `http://localhost:3000`
-   — meaning the real frontend will suddenly get CORS errors calling the API
-   until you set it correctly and run `docker compose up -d api`.
-4. **The frontend no longer hardcodes `${hostname}:3001`** — it now reads
-   `NEXT_PUBLIC_API_URL`/`NEXT_PUBLIC_WS_URL`, baked in at *build* time (not
-   read at container runtime, so `docker compose up -d` alone won't pick up a
-   change — needs `--build`). **Check `.env` on the server before
-   redeploying**: if either var is set to something stale (e.g. a leftover
-   `YOUR_EC2_IP` placeholder), that broken value gets permanently baked into
-   the bundle. Leaving both blank is almost always what you want — it
-   preserves the automatic same-host detection that lets the demo survive an
-   IP change without a rebuild.
+Upgrading an existing deployment, or curious about the Cloudflare Tunnel setup? See [DEPLOYMENT.md](DEPLOYMENT.md).
 
 ---
 
-## Environment variables
+<details>
+<summary><strong>Environment variables</strong></summary>
 
 | Variable | Description |
 |----------|-------------|
@@ -153,22 +151,4 @@ usually remember):
 | `INTERNAL_API_URL` | API base URL (server-side, uses Docker hostname) |
 | `WEB_URL` | The only origin the API's CORS policy allows — must match wherever `web` is actually served |
 
----
-
-## Key design decisions
-
-**Observable agent loop** — the core differentiator. Rather than returning a finished report, every step of the AI's reasoning streams live to the browser. Users watch the agent think ("Semgrep found 3 issues → analyzing for false positives → confirmed SQL injection at line 47").
-
-**HTTP broadcast over persistent WebSocket** — the worker pushes events to the API via HTTP POST (`/internal/broadcast`) rather than maintaining a persistent WebSocket connection, which proved unreliable across Docker networks. The API then fans out to browser clients.
-
-**Batched streaming** — Claude token deltas are buffered (300ms or 200 chars) before broadcasting to avoid flooding the HTTP broadcast endpoint with hundreds of tiny requests per second.
-
-**Shallow clone** — `git clone --depth 1` keeps clone times under 10 seconds for most repos and avoids storing full git history on disk.
-
-**Ownership without accounts** — most audits are started anonymously, but people still need to cancel or delete the ones they kicked off. Each audit gets a random owner token at creation time (returned once, held client-side); cancel/delete require that token or a matching authenticated `user_id`. `GET /api/audits/recent` and shareable reports stay public, but only the creator can mutate their own audit.
-
-**Shared secret on the internal broadcast route** — the worker pushes events to the browser via `POST /internal/broadcast` on the API, but the API's port is reachable from outside the docker network too (the browser talks to it directly). That route requires an `INTERNAL_SECRET` header rather than trusting network placement alone.
-
-**Per-phase timing, not just config constants** — each audit records clone/scan/AI durations (`audits.timings`), with each of the three scanners timed individually even though they run concurrently. That's what makes it possible to state an honest parallelism payoff (parallel wall-clock vs. the sum of the three durations run serially) instead of just describing the setting (`concurrency: 3`) and assuming it helped.
-
-**Flat subdomains, not nested ones** — the API is served from `devaudit-api.nathnaeltesfaw.dev` rather than the more obvious `api.devaudit.nathnaeltesfaw.dev`. Cloudflare's free Universal SSL certificate only covers the bare domain plus one level of wildcard (`*.nathnaeltesfaw.dev`); a second nested level has no matching certificate at the edge and fails the TLS handshake before the request ever reaches the tunnel. Keeping both hostnames one level deep avoids paying for Advanced Certificate Manager just for a demo.
+</details>
