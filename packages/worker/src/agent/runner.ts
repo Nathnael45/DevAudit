@@ -72,8 +72,30 @@ export function foundMessage(tool: string, count: number, limit: number, unit: s
 // sent to Claude: it would leave the server for a third-party API, and Claude
 // could quote it into a finding that ends up on a public report page. The rule,
 // description and location are enough to explain and fix the leak.
-export function formatGitleaksForPrompt(findings: GitleaksFinding[]): string {
-  return findings.map(f => `[${f.RuleID}] ${f.File}:${f.StartLine} — ${f.Description}`).join('\n');
+export function formatGitleaksForPrompt(findings: GitleaksFinding[], repoPath = ''): string {
+  return findings.map(f => `[${f.RuleID}] ${toRepoPath(repoPath, f.File)}:${f.StartLine} — ${f.Description}`).join('\n');
+}
+
+// Scanners report absolute paths inside the clone (/tmp/devaudit-repos/<id>/...).
+// Claude gets — and so writes into findings — paths relative to the repo root,
+// which is what a reader (and a GitHub link) needs, and doesn't leak server layout.
+export function toRepoPath(repoPath: string, filePath: string): string {
+  return repoPath && filePath.startsWith(repoPath + '/') ? filePath.slice(repoPath.length + 1) : filePath;
+}
+
+// Claude's response is: narrated reasoning (streamed live), then a <summary>
+// TL;DR for the top of the report, then the <findings> JSON. The report shows
+// the TL;DR first and keeps the reasoning as an expandable detail.
+export function extractExecutiveSummary(fullText: string): string | null {
+  const match = fullText.match(/<summary>([\s\S]*?)<\/summary>/);
+  return match?.[1].trim() || null;
+}
+
+export function extractReasoning(fullText: string): string {
+  return fullText
+    .replace(/<findings>[\s\S]*?<\/findings>/, '')
+    .replace(/<summary>[\s\S]*?<\/summary>/, '')
+    .trim();
 }
 
 // A scanner that timed out or crashed returns no findings, which on its own
@@ -170,14 +192,14 @@ export async function runAudit({ auditId, repoUrl }: { auditId: string; repoUrl:
 
     // 3. Build context for Claude
     const semgrepSummary = sortedSemgrep.slice(0, SEMGREP_LIMIT).map(f =>
-      `[${f.check_id}] ${f.path}:${f.start.line} — ${f.extra.message} (${f.extra.severity})`
+      `[${f.check_id}] ${toRepoPath(repoPath, f.path)}:${f.start.line} — ${f.extra.message} (${f.extra.severity})`
     ).join('\n');
 
     const banditSummary = sortedBandit.slice(0, BANDIT_LIMIT).map(f =>
-      `[${f.test_id}/${f.test_name}] ${f.filename}:${f.line_number} — ${f.issue_text} (severity: ${f.issue_severity}, confidence: ${f.issue_confidence})`
+      `[${f.test_id}/${f.test_name}] ${toRepoPath(repoPath, f.filename)}:${f.line_number} — ${f.issue_text} (severity: ${f.issue_severity}, confidence: ${f.issue_confidence})`
     ).join('\n');
 
-    const gitleaksSummary = formatGitleaksForPrompt(gitleaksFindings.slice(0, GITLEAKS_LIMIT));
+    const gitleaksSummary = formatGitleaksForPrompt(gitleaksFindings.slice(0, GITLEAKS_LIMIT), repoPath);
 
     const systemPrompt = `You are DevAudit, an expert security engineer conducting a thorough code security audit.
 You have been given the output of automated static analysis tools on a GitHub repository.
@@ -185,10 +207,15 @@ Your job is to:
 1. Reason through each finding — think out loud about whether it's a real vulnerability or a false positive
 2. Classify each real finding by severity: critical, high, medium, low, or info
 3. For each confirmed vulnerability, provide: a clear title, description of the risk, and a concrete fix recommendation
-4. Produce a final executive summary
+4. Finish with a short TL;DR for the report (format below)
 
 As you work, narrate your thinking process. This stream is displayed live to the user.
-Format your final findings as a JSON array at the end inside <findings></findings> tags.
+After your analysis, write the report's TL;DR inside <summary></summary> tags, as markdown a non-specialist can scan in 15 seconds (at most 80 words total):
+- First line: one bold sentence with the overall verdict, e.g. **High risk: attackers can log in as any user.**
+- Then 2-3 bullet points, each starting with the issue in bold followed by its consequence in plain words, e.g. "- **SQL injection** in the login code lets attackers bypass passwords."
+- Last bullet: "- **Fix first:**" then the one or two most important fixes.
+Name issues, not every file. No headings or tables. Don't also write a separate executive summary section; this block is the summary.
+Then put your final findings as a JSON array inside <findings></findings> tags.
 
 Finding schema:
 {
@@ -311,10 +338,19 @@ Please analyze these findings, think through each one carefully, identify real v
       emit(auditId, 'finding', { finding: f });
     }
 
-    // 7. Extract and save summary (text before <findings>)
-    const summaryText = coverageNote(scanErrors) + fullText.replace(/<findings>[\s\S]*?<\/findings>/, '').trim();
+    // 7. Save the report text: full reasoning, the TL;DR, and scanner counts
+    // (raw alerts per tool vs. confirmed findings — the report shows the funnel).
+    const summaryText = coverageNote(scanErrors) + extractReasoning(fullText);
     await saveEvent(auditId, 'summary', summaryText);
     emit(auditId, 'summary', { content: summaryText });
+
+    const executiveSummary = extractExecutiveSummary(fullText);
+    if (executiveSummary) await saveEvent(auditId, 'executive_summary', executiveSummary);
+
+    await saveEvent(auditId, 'scan_stats', 'Scanner alerts vs. confirmed findings', {
+      tools: scanReports.map(([tool, result]) => ({ tool, alerts: result.findings.length, error: result.error ?? null })),
+      confirmed: parsedFindings.length,
+    });
 
     // 8. Done
     await updateAuditTimings(auditId, timings);

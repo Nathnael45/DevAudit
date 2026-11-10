@@ -42,7 +42,7 @@ export async function updateAuditTimings(auditId: string, timings: object) {
 
 export async function saveEvent(
   auditId: string,
-  type: 'thought' | 'finding' | 'summary' | 'error',
+  type: 'thought' | 'finding' | 'summary' | 'executive_summary' | 'scan_stats' | 'error',
   content: string,
   metadata?: object
 ) {

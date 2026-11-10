@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { getApiUrl, getWsUrl } from '@/lib/apiUrl';
 
-export type EventType = 'thought' | 'thinking_delta' | 'text_delta' | 'finding' | 'summary' | 'status' | 'error';
+export type EventType = 'thought' | 'thinking_delta' | 'text_delta' | 'finding' | 'summary' | 'executive_summary' | 'scan_stats' | 'status' | 'error';
 
 export interface StreamEvent {
   type: EventType;

@@ -49,6 +49,39 @@ describe('GET /api/reports/:slug', () => {
     expect(res.body.findings.map((f: any) => f.severity)).toEqual(['critical', 'medium', 'low']);
   });
 
+  it('returns the TL;DR, scanner stats and timings alongside the full reasoning', async () => {
+    const auditId = await createAudit('tldr1', 'done');
+    await db.query(`UPDATE audits SET timings = $1 WHERE id = $2`, [JSON.stringify({ scanWallMs: 1200, aiMs: 5000 }), auditId]);
+    await insertSummary(auditId, 'Full reasoning.');
+    await db.query(
+      `INSERT INTO audit_events (audit_id, type, content) VALUES ($1, 'executive_summary', 'High risk overall.')`,
+      [auditId]
+    );
+    const stats = { tools: [{ tool: 'Semgrep', alerts: 12, error: null }], confirmed: 3 };
+    await db.query(
+      `INSERT INTO audit_events (audit_id, type, content, metadata) VALUES ($1, 'scan_stats', 'stats', $2)`,
+      [auditId, JSON.stringify(stats)]
+    );
+
+    const res = await request(app).get('/api/reports/tldr1');
+
+    expect(res.body.summary).toBe('Full reasoning.');
+    expect(res.body.tldr).toBe('High risk overall.');
+    expect(res.body.scanStats).toEqual(stats);
+    expect(res.body.audit.timings).toEqual({ scanWallMs: 1200, aiMs: 5000 });
+  });
+
+  it('returns null tldr and scanStats for reports created before they existed', async () => {
+    const auditId = await createAudit('legacy1', 'done');
+    await insertSummary(auditId, 'Old-style summary.');
+
+    const res = await request(app).get('/api/reports/legacy1');
+
+    expect(res.body.summary).toBe('Old-style summary.');
+    expect(res.body.tldr).toBeNull();
+    expect(res.body.scanStats).toBeNull();
+  });
+
   it('returns null summary when no summary event was recorded', async () => {
     await createAudit('nosummary', 'done');
 

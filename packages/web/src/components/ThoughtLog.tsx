@@ -36,7 +36,8 @@ export default function ThoughtLog({ events, thinkingText, analysisText, status 
   // shows it; when reopening a finished audit only the saved event exists. Either
   // way it renders once, as markdown, in the analysis block below.
   const markdown = analysisText || events.find((ev) => ev.type === 'summary')?.content || '';
-  const logEvents = events.filter((ev) => ev.type !== 'summary');
+  // Report-only events (TL;DR, scanner counts) aren't log lines.
+  const logEvents = events.filter((ev) => !['summary', 'executive_summary', 'scan_stats'].includes(ev.type));
 
   return (
     <div className="flex flex-col h-full bg-terminal-bg rounded-lg border border-terminal-border overflow-hidden">
@@ -75,6 +76,7 @@ export default function ThoughtLog({ events, thinkingText, analysisText, status 
               prose-blockquote:border-terminal-green prose-blockquote:text-terminal-muted">
               <ReactMarkdown>
                 {markdown
+                  .replace(/<summary>/g, '\n\n**TL;DR:** ').replace(/<\/summary>/g, '\n\n')  // label the report TL;DR as it streams
                   .replace(/<findings>[\s\S]*?<\/findings>/g, '')  // strip complete block
                   .replace(/<findings>[\s\S]*/g, '\n\n_Summarizing findings..._')  // replace partial block while streaming
                   .trim()}

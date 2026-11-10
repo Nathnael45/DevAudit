@@ -44,4 +44,23 @@ describe('FindingCard', () => {
 
     expect(screen.queryByText(/src\/db\/query\.ts/)).toBeNull();
   });
+
+  it('starts expanded when defaultExpanded is set', () => {
+    render(<FindingCard finding={finding} defaultExpanded />);
+    expect(screen.getByRole('button', { name: /Unsanitized SQL query/ }).getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByText(finding.description)).toBeTruthy();
+  });
+
+  it('links the file location to GitHub when the repo URL is known', () => {
+    render(<FindingCard finding={{ ...finding, lineEnd: 45 }} repoUrl="https://github.com/acme/app" />);
+    const link = screen.getByRole('link', { name: /src\/db\/query\.ts:42/ });
+    expect(link.getAttribute('href')).toBe('https://github.com/acme/app/blob/HEAD/src/db/query.ts#L42-L45');
+    expect(link.getAttribute('target')).toBe('_blank');
+    expect(link.getAttribute('rel')).toContain('noopener');
+  });
+
+  it('shows the location as plain text without a repo URL (live audit view)', () => {
+    render(<FindingCard finding={finding} />);
+    expect(screen.queryByRole('link')).toBeNull();
+  });
 });

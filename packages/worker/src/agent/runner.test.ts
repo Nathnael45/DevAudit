@@ -7,6 +7,9 @@ import {
   formatGitleaksForPrompt,
   scanSection,
   coverageNote,
+  toRepoPath,
+  extractExecutiveSummary,
+  extractReasoning,
   SEMGREP_SEVERITY_RANK,
   BANDIT_SEVERITY_RANK,
 } from './runner';
@@ -154,5 +157,33 @@ describe('coverageNote', () => {
       '> **Incomplete scan:** Semgrep timed out after 300s. Findings from that tool are missing from this report.\n\n'
     );
     expect(coverageNote(['Semgrep timed out after 300s', 'Bandit failed to run (x)'])).toContain('those tools are missing');
+  });
+});
+
+describe('toRepoPath', () => {
+  it('strips the clone directory so paths are relative to the repo root', () => {
+    expect(toRepoPath('/tmp/devaudit-repos/abc', '/tmp/devaudit-repos/abc/app/db.py')).toBe('app/db.py');
+  });
+
+  it('leaves paths outside the clone (or already relative) unchanged', () => {
+    expect(toRepoPath('/tmp/devaudit-repos/abc', 'app/db.py')).toBe('app/db.py');
+    expect(toRepoPath('/tmp/devaudit-repos/abc', '/tmp/devaudit-repos/abcdef/x.py')).toBe('/tmp/devaudit-repos/abcdef/x.py');
+  });
+});
+
+describe('extractExecutiveSummary / extractReasoning', () => {
+  const response = `## Analysis\nReasoning here.\n\n<summary>\nHigh risk. Fix the SQL injection first.\n</summary>\n\n<findings>[]</findings>`;
+
+  it('pulls out the TL;DR block', () => {
+    expect(extractExecutiveSummary(response)).toBe('High risk. Fix the SQL injection first.');
+  });
+
+  it('returns null when Claude omitted the block (or left it empty)', () => {
+    expect(extractExecutiveSummary('no tags here')).toBeNull();
+    expect(extractExecutiveSummary('<summary>  </summary>')).toBeNull();
+  });
+
+  it('keeps only the narrated reasoning, without the TL;DR or findings JSON', () => {
+    expect(extractReasoning(response)).toBe('## Analysis\nReasoning here.');
   });
 });
