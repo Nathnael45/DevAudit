@@ -1,7 +1,10 @@
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 
+import { ScanResult, describeScanError } from './scanResult';
+
 const execFileAsync = promisify(execFile);
+const TIMEOUT_MS = 300_000;
 
 export interface SemgrepFinding {
   path: string;
@@ -15,7 +18,7 @@ export interface SemgrepFinding {
   check_id: string;
 }
 
-export async function runSemgrep(repoPath: string): Promise<SemgrepFinding[]> {
+export async function runSemgrep(repoPath: string): Promise<ScanResult<SemgrepFinding>> {
   try {
     const { stdout } = await execFileAsync(
       'semgrep',
@@ -27,19 +30,20 @@ export async function runSemgrep(repoPath: string): Promise<SemgrepFinding[]> {
       // resource-constrained testing can't reproduce (that's a full
       // sustained allocation, not AWS's credit-based bursting). Widened for
       // real headroom rather than guessing at the exact throttled rate.
-      { timeout: 300_000, maxBuffer: 50 * 1024 * 1024 }
+      { timeout: TIMEOUT_MS, maxBuffer: 50 * 1024 * 1024 }
     );
     const parsed = JSON.parse(stdout);
-    return parsed.results ?? [];
+    return { findings: parsed.results ?? [] };
   } catch (err: any) {
-    // semgrep exits non-zero when findings exist; stdout still has JSON
-    if (err.stdout) {
+    // semgrep exits non-zero when findings exist; stdout still has JSON.
+    // A timeout kills it mid-run, so any output then is partial — not trusted.
+    if (err.stdout && !err.killed) {
       try {
         const parsed = JSON.parse(err.stdout);
-        return parsed.results ?? [];
+        return { findings: parsed.results ?? [] };
       } catch { /* fall through */ }
     }
     console.warn('[semgrep] failed:', err.message);
-    return [];
+    return { findings: [], error: describeScanError(err, TIMEOUT_MS) };
   }
 }

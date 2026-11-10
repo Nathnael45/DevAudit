@@ -21,9 +21,9 @@ vi.mock('../scanner/gitClone', () => ({
   cloneRepo: vi.fn().mockResolvedValue('/tmp/fake-repo'),
   cleanupRepo: vi.fn().mockResolvedValue(undefined),
 }));
-vi.mock('../scanner/semgrep', () => ({ runSemgrep: vi.fn().mockResolvedValue([]) }));
-vi.mock('../scanner/bandit', () => ({ runBandit: vi.fn().mockResolvedValue([]) }));
-vi.mock('../scanner/gitleaks', () => ({ runGitleaks: vi.fn().mockResolvedValue([]) }));
+vi.mock('../scanner/semgrep', () => ({ runSemgrep: vi.fn().mockResolvedValue({ findings: [] }) }));
+vi.mock('../scanner/bandit', () => ({ runBandit: vi.fn().mockResolvedValue({ findings: [] }) }));
+vi.mock('../scanner/gitleaks', () => ({ runGitleaks: vi.fn().mockResolvedValue({ findings: [] }) }));
 vi.mock('../utils/broadcaster', () => ({ emit: vi.fn() }));
 vi.mock('../utils/db', () => ({
   claimAuditForRun: vi.fn(),

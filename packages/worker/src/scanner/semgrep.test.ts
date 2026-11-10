@@ -28,7 +28,7 @@ describe('runSemgrep', () => {
       stderr: '',
     });
 
-    expect(await runSemgrep('/repo')).toEqual([{ check_id: 'sql-injection' }]);
+    expect(await runSemgrep('/repo')).toEqual({ findings: [{ check_id: 'sql-injection' }] });
   });
 
   it('still parses findings when semgrep exits non-zero (its normal behavior when findings exist)', async () => {
@@ -36,26 +36,36 @@ describe('runSemgrep', () => {
     err.stdout = JSON.stringify({ results: [{ check_id: 'xss' }] });
     execFileCustomMock.mockRejectedValue(err);
 
-    expect(await runSemgrep('/repo')).toEqual([{ check_id: 'xss' }]);
+    expect(await runSemgrep('/repo')).toEqual({ findings: [{ check_id: 'xss' }] });
   });
 
-  it('returns [] when the failure has no usable stdout', async () => {
+  it('reports an error (not a clean empty result) when the failure has no usable stdout', async () => {
     execFileCustomMock.mockRejectedValue(new Error('semgrep: command not found'));
 
-    expect(await runSemgrep('/repo')).toEqual([]);
+    expect(await runSemgrep('/repo')).toEqual({ findings: [], error: 'failed to run (semgrep: command not found)' });
   });
 
-  it('returns [] when stdout on failure is not valid JSON', async () => {
+  it('reports an error when stdout on failure is not valid JSON', async () => {
     const err: any = new Error('Command failed');
     err.stdout = 'not json';
     execFileCustomMock.mockRejectedValue(err);
 
-    expect(await runSemgrep('/repo')).toEqual([]);
+    expect(await runSemgrep('/repo')).toEqual({ findings: [], error: 'failed to run (Command failed)' });
   });
 
-  it('returns [] when results key is absent from otherwise-valid JSON', async () => {
+  it('returns no findings (and no error) when results key is absent from otherwise-valid JSON', async () => {
     execFileCustomMock.mockResolvedValue({ stdout: JSON.stringify({}), stderr: '' });
 
-    expect(await runSemgrep('/repo')).toEqual([]);
+    expect(await runSemgrep('/repo')).toEqual({ findings: [] });
+  });
+
+  it('reports a timeout instead of passing off partial output as a clean scan', async () => {
+    const err: any = new Error('Command failed');
+    err.killed = true;
+    err.signal = 'SIGTERM';
+    err.stdout = JSON.stringify({ results: [{ check_id: 'partial' }] });
+    execFileCustomMock.mockRejectedValue(err);
+
+    expect(await runSemgrep('/repo')).toEqual({ findings: [], error: 'timed out after 300s' });
   });
 });

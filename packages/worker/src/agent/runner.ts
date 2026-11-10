@@ -3,6 +3,7 @@ import { cloneRepo, cleanupRepo } from '../scanner/gitClone';
 import { runSemgrep } from '../scanner/semgrep';
 import { runBandit } from '../scanner/bandit';
 import { runGitleaks } from '../scanner/gitleaks';
+import { ScanResult } from '../scanner/scanResult';
 import { claimAuditForRun, finishAudit, isAuditStillRunning, updateAuditTimings, saveEvent, saveFinding } from '../utils/db';
 import { emit } from '../utils/broadcaster';
 
@@ -67,6 +68,21 @@ export function foundMessage(tool: string, count: number, limit: number, unit: s
     : `${tool} found ${count} potential ${unit}.`;
 }
 
+// A scanner that timed out or crashed returns no findings, which on its own
+// would read as "nothing found". These make the gap visible in the prompt and
+// in the saved report.
+export function scanSection(tool: string, result: ScanResult<unknown>, body: string, emptyText: string): string {
+  if (result.error) {
+    return `SCAN INCOMPLETE — ${tool} ${result.error}. Its results are missing; do not treat the absence of ${tool} findings as evidence the code is clean.`;
+  }
+  return body || emptyText;
+}
+
+export function coverageNote(scanErrors: string[]): string {
+  if (scanErrors.length === 0) return '';
+  return `> **Incomplete scan:** ${scanErrors.join('; ')}. Findings from ${scanErrors.length === 1 ? 'that tool are' : 'those tools are'} missing from this report.\n\n`;
+}
+
 export async function runAudit({ auditId, repoUrl }: { auditId: string; repoUrl: string }) {
   const timings: Record<string, number> = {};
 
@@ -104,9 +120,9 @@ export async function runAudit({ auditId, repoUrl }: { auditId: string; repoUrl:
 
     const scanWallStart = Date.now();
     const [
-      [semgrepFindings, semgrepMs],
-      [banditFindings, banditMs],
-      [gitleaksFindings, gitleaksMs],
+      [semgrepResult, semgrepMs],
+      [banditResult, banditMs],
+      [gitleaksResult, gitleaksMs],
     ] = await Promise.all([
       timed(() => runSemgrep(repoPath)),
       timed(() => runBandit(repoPath)),
@@ -118,6 +134,13 @@ export async function runAudit({ auditId, repoUrl }: { auditId: string; repoUrl:
     timings.gitleaksMs = gitleaksMs;
     await throwIfCancelled();
 
+    const semgrepFindings = semgrepResult.findings;
+    const banditFindings = banditResult.findings;
+    const gitleaksFindings = gitleaksResult.findings;
+    const scanErrors = ([['Semgrep', semgrepResult], ['Bandit', banditResult], ['Gitleaks', gitleaksResult]] as const)
+      .filter(([, r]) => r.error)
+      .map(([tool, r]) => `${tool} ${r.error}`);
+
     const SEMGREP_LIMIT = 30;
     const BANDIT_LIMIT = 30;
     const GITLEAKS_LIMIT = 20;
@@ -125,9 +148,16 @@ export async function runAudit({ auditId, repoUrl }: { auditId: string; repoUrl:
     const sortedSemgrep = sortBySeverityRank(semgrepFindings, f => f.extra.severity, SEMGREP_SEVERITY_RANK);
     const sortedBandit = sortBySeverityRank(banditFindings, f => f.issue_severity, BANDIT_SEVERITY_RANK);
 
-    await thought(foundMessage('Semgrep', semgrepFindings.length, SEMGREP_LIMIT, 'issues'));
-    await thought(foundMessage('Bandit', banditFindings.length, BANDIT_LIMIT, 'issues'));
-    await thought(foundMessage('Gitleaks', gitleaksFindings.length, GITLEAKS_LIMIT, 'secrets'));
+    const scanReports = [
+      ['Semgrep', semgrepResult, SEMGREP_LIMIT, 'issues'],
+      ['Bandit', banditResult, BANDIT_LIMIT, 'issues'],
+      ['Gitleaks', gitleaksResult, GITLEAKS_LIMIT, 'secrets'],
+    ] as const;
+    for (const [tool, result, limit, unit] of scanReports) {
+      await thought(result.error
+        ? `Warning: ${tool} ${result.error} — its results will be missing from this audit.`
+        : foundMessage(tool, result.findings.length, limit, unit));
+    }
     await thought(`Passing findings to AI for deep analysis...`);
 
     // 3. Build context for Claude
@@ -169,13 +199,13 @@ Finding schema:
     const userMessage = `Repository: ${repoUrl}
 
 ## Semgrep Findings (${semgrepFindings.length} total, showing first 30):
-${semgrepSummary || 'No findings.'}
+${scanSection('Semgrep', semgrepResult, semgrepSummary, 'No findings.')}
 
 ## Bandit Findings (${banditFindings.length} total, showing first 30):
-${banditSummary || 'No findings.'}
+${scanSection('Bandit', banditResult, banditSummary, 'No findings.')}
 
 ## Gitleaks Findings — Exposed Secrets (${gitleaksFindings.length} total, showing first 20):
-${gitleaksSummary || 'No secrets found.'}
+${scanSection('Gitleaks', gitleaksResult, gitleaksSummary, 'No secrets found.')}
 
 Please analyze these findings, think through each one carefully, identify real vulnerabilities, and produce your security report.`;
 
@@ -276,7 +306,7 @@ Please analyze these findings, think through each one carefully, identify real v
     }
 
     // 7. Extract and save summary (text before <findings>)
-    const summaryText = fullText.replace(/<findings>[\s\S]*?<\/findings>/, '').trim();
+    const summaryText = coverageNote(scanErrors) + fullText.replace(/<findings>[\s\S]*?<\/findings>/, '').trim();
     await saveEvent(auditId, 'summary', summaryText);
     emit(auditId, 'summary', { content: summaryText });
 

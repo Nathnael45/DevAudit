@@ -4,6 +4,8 @@ import {
   isOverloadedError,
   sortBySeverityRank,
   foundMessage,
+  scanSection,
+  coverageNote,
   SEMGREP_SEVERITY_RANK,
   BANDIT_SEVERITY_RANK,
 } from './runner';
@@ -107,5 +109,31 @@ describe('foundMessage', () => {
 
   it('treats exactly-at-the-limit as not truncated', () => {
     expect(foundMessage('Gitleaks', 20, 20, 'secrets')).toBe('Gitleaks found 20 potential secrets.');
+  });
+});
+
+describe('scanSection', () => {
+  it('passes findings through when the scanner finished', () => {
+    expect(scanSection('Semgrep', { findings: [{}] }, 'some findings', 'No findings.')).toBe('some findings');
+    expect(scanSection('Semgrep', { findings: [] }, '', 'No findings.')).toBe('No findings.');
+  });
+
+  it('tells Claude a failed scanner is missing, rather than "No findings."', () => {
+    const text = scanSection('Semgrep', { findings: [], error: 'timed out after 300s' }, '', 'No findings.');
+    expect(text).toContain('SCAN INCOMPLETE — Semgrep timed out after 300s');
+    expect(text).not.toContain('No findings.');
+  });
+});
+
+describe('coverageNote', () => {
+  it('is empty when every scanner finished', () => {
+    expect(coverageNote([])).toBe('');
+  });
+
+  it('names the missing tools at the top of the report summary', () => {
+    expect(coverageNote(['Semgrep timed out after 300s'])).toBe(
+      '> **Incomplete scan:** Semgrep timed out after 300s. Findings from that tool are missing from this report.\n\n'
+    );
+    expect(coverageNote(['Semgrep timed out after 300s', 'Bandit failed to run (x)'])).toContain('those tools are missing');
   });
 });

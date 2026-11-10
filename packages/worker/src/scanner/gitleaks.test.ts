@@ -34,28 +34,28 @@ describe('runGitleaks', () => {
     execFileCustomMock.mockResolvedValue({ stdout: '', stderr: '' });
     readFileMock.mockResolvedValue(JSON.stringify([{ RuleID: 'aws-access-key' }]));
 
-    expect(await runGitleaks('/repo')).toEqual([{ RuleID: 'aws-access-key' }]);
+    expect(await runGitleaks('/repo')).toEqual({ findings: [{ RuleID: 'aws-access-key' }] });
   });
 
   it('returns [] when the report file is empty (no leaks found)', async () => {
     execFileCustomMock.mockResolvedValue({ stdout: '', stderr: '' });
     readFileMock.mockResolvedValue('');
 
-    expect(await runGitleaks('/repo')).toEqual([]);
+    expect(await runGitleaks('/repo')).toEqual({ findings: [] });
   });
 
   it('still reads the report file if gitleaks itself fails unexpectedly', async () => {
     execFileCustomMock.mockRejectedValue(new Error('unexpected failure'));
     readFileMock.mockResolvedValue(JSON.stringify([{ RuleID: 'generic-secret' }]));
 
-    expect(await runGitleaks('/repo')).toEqual([{ RuleID: 'generic-secret' }]);
+    expect(await runGitleaks('/repo')).toEqual({ findings: [{ RuleID: 'generic-secret' }] });
   });
 
-  it('returns [] when there is no report file to read at all', async () => {
+  it('reports an error when there is no report file to read at all', async () => {
     execFileCustomMock.mockRejectedValue(new Error('gitleaks: command not found'));
     readFileMock.mockRejectedValue(new Error('ENOENT'));
 
-    expect(await runGitleaks('/repo')).toEqual([]);
+    expect(await runGitleaks('/repo')).toEqual({ findings: [], error: 'failed to run (gitleaks: command not found)' });
   });
 
   it('always cleans up the report file, even on failure', async () => {
@@ -65,5 +65,14 @@ describe('runGitleaks', () => {
     await runGitleaks('/repo');
 
     expect(rmMock).toHaveBeenCalledWith(expect.stringContaining('gitleaks-'), { force: true });
+  });
+
+  it('reports a timeout without reading a possibly-partial report file', async () => {
+    const err: any = new Error('Command failed');
+    err.killed = true;
+    execFileCustomMock.mockRejectedValue(err);
+    readFileMock.mockResolvedValue(JSON.stringify([{ RuleID: 'partial' }]));
+
+    expect(await runGitleaks('/repo')).toEqual({ findings: [], error: 'timed out after 60s' });
   });
 });

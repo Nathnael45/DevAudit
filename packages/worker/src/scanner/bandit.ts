@@ -1,7 +1,10 @@
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 
+import { ScanResult, describeScanError } from './scanResult';
+
 const execFileAsync = promisify(execFile);
+const TIMEOUT_MS = 120_000;
 
 export interface BanditFinding {
   filename: string;
@@ -15,24 +18,25 @@ export interface BanditFinding {
   code: string;
 }
 
-export async function runBandit(repoPath: string): Promise<BanditFinding[]> {
+export async function runBandit(repoPath: string): Promise<ScanResult<BanditFinding>> {
   try {
     const { stdout } = await execFileAsync(
       'bandit',
       ['-r', repoPath, '-f', 'json', '-q'],
-      { timeout: 120_000, maxBuffer: 50 * 1024 * 1024 }
+      { timeout: TIMEOUT_MS, maxBuffer: 50 * 1024 * 1024 }
     );
     const parsed = JSON.parse(stdout);
-    return parsed.results ?? [];
+    return { findings: parsed.results ?? [] };
   } catch (err: any) {
-    // bandit exits 1 when issues found; stdout still has JSON
-    if (err.stdout) {
+    // bandit exits 1 when issues found; stdout still has JSON.
+    // A timeout kills it mid-run, so any output then is partial — not trusted.
+    if (err.stdout && !err.killed) {
       try {
         const parsed = JSON.parse(err.stdout);
-        return parsed.results ?? [];
+        return { findings: parsed.results ?? [] };
       } catch { /* fall through */ }
     }
     console.warn('[bandit] failed:', err.message);
-    return [];
+    return { findings: [], error: describeScanError(err, TIMEOUT_MS) };
   }
 }

@@ -24,7 +24,7 @@ describe('runBandit', () => {
       stderr: '',
     });
 
-    expect(await runBandit('/repo')).toEqual([{ test_id: 'B105' }]);
+    expect(await runBandit('/repo')).toEqual({ findings: [{ test_id: 'B105' }] });
   });
 
   it('still parses findings when bandit exits non-zero (its normal behavior when issues are found)', async () => {
@@ -32,20 +32,29 @@ describe('runBandit', () => {
     err.stdout = JSON.stringify({ results: [{ test_id: 'B608' }] });
     execFileCustomMock.mockRejectedValue(err);
 
-    expect(await runBandit('/repo')).toEqual([{ test_id: 'B608' }]);
+    expect(await runBandit('/repo')).toEqual({ findings: [{ test_id: 'B608' }] });
   });
 
-  it('returns [] when the failure has no usable stdout', async () => {
+  it('reports an error (not a clean empty result) when the failure has no usable stdout', async () => {
     execFileCustomMock.mockRejectedValue(new Error('bandit: command not found'));
 
-    expect(await runBandit('/repo')).toEqual([]);
+    expect(await runBandit('/repo')).toEqual({ findings: [], error: 'failed to run (bandit: command not found)' });
   });
 
-  it('returns [] when stdout on failure is not valid JSON', async () => {
+  it('reports an error when stdout on failure is not valid JSON', async () => {
     const err: any = new Error('Command failed');
     err.stdout = 'not json';
     execFileCustomMock.mockRejectedValue(err);
 
-    expect(await runBandit('/repo')).toEqual([]);
+    expect(await runBandit('/repo')).toEqual({ findings: [], error: 'failed to run (Command failed)' });
+  });
+
+  it('reports a timeout instead of passing off partial output as a clean scan', async () => {
+    const err: any = new Error('Command failed');
+    err.killed = true;
+    err.stdout = JSON.stringify({ results: [{ test_id: 'partial' }] });
+    execFileCustomMock.mockRejectedValue(err);
+
+    expect(await runBandit('/repo')).toEqual({ findings: [], error: 'timed out after 120s' });
   });
 });
