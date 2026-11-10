@@ -2,7 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { cloneRepo, cleanupRepo } from '../scanner/gitClone';
 import { runSemgrep } from '../scanner/semgrep';
 import { runBandit } from '../scanner/bandit';
-import { runGitleaks } from '../scanner/gitleaks';
+import { runGitleaks, GitleaksFinding } from '../scanner/gitleaks';
 import { ScanResult } from '../scanner/scanResult';
 import { claimAuditForRun, finishAudit, isAuditStillRunning, updateAuditTimings, saveEvent, saveFinding } from '../utils/db';
 import { emit } from '../utils/broadcaster';
@@ -66,6 +66,14 @@ export function foundMessage(tool: string, count: number, limit: number, unit: s
   return count > limit
     ? `${tool} found ${count} potential ${unit} — reviewing the ${limit} highest-severity for deep analysis.`
     : `${tool} found ${count} potential ${unit}.`;
+}
+
+// Gitleaks reports the matched secret itself (Match/Secret). None of that is
+// sent to Claude: it would leave the server for a third-party API, and Claude
+// could quote it into a finding that ends up on a public report page. The rule,
+// description and location are enough to explain and fix the leak.
+export function formatGitleaksForPrompt(findings: GitleaksFinding[]): string {
+  return findings.map(f => `[${f.RuleID}] ${f.File}:${f.StartLine} — ${f.Description}`).join('\n');
 }
 
 // A scanner that timed out or crashed returns no findings, which on its own
@@ -169,9 +177,7 @@ export async function runAudit({ auditId, repoUrl }: { auditId: string; repoUrl:
       `[${f.test_id}/${f.test_name}] ${f.filename}:${f.line_number} — ${f.issue_text} (severity: ${f.issue_severity}, confidence: ${f.issue_confidence})`
     ).join('\n');
 
-    const gitleaksSummary = gitleaksFindings.slice(0, GITLEAKS_LIMIT).map(f =>
-      `[${f.RuleID}] ${f.File}:${f.StartLine} — ${f.Description} (match: ${f.Match.slice(0, 40)}...)`
-    ).join('\n');
+    const gitleaksSummary = formatGitleaksForPrompt(gitleaksFindings.slice(0, GITLEAKS_LIMIT));
 
     const systemPrompt = `You are DevAudit, an expert security engineer conducting a thorough code security audit.
 You have been given the output of automated static analysis tools on a GitHub repository.

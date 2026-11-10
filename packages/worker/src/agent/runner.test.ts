@@ -4,6 +4,7 @@ import {
   isOverloadedError,
   sortBySeverityRank,
   foundMessage,
+  formatGitleaksForPrompt,
   scanSection,
   coverageNote,
   SEMGREP_SEVERITY_RANK,
@@ -109,6 +110,24 @@ describe('foundMessage', () => {
 
   it('treats exactly-at-the-limit as not truncated', () => {
     expect(foundMessage('Gitleaks', 20, 20, 'secrets')).toBe('Gitleaks found 20 potential secrets.');
+  });
+});
+
+describe('formatGitleaksForPrompt', () => {
+  it('sends the rule and location to Claude, never the secret itself', () => {
+    const secret = 'AKIAIOSFODNN7EXAMPLEKEY1234567890abcdef';
+    const text = formatGitleaksForPrompt([{
+      RuleID: 'aws-access-token',
+      Description: 'AWS access key',
+      File: 'config/prod.env',
+      StartLine: 3,
+      EndLine: 3,
+      Secret: secret,
+      Match: `AWS_KEY=${secret}`,
+    }]);
+
+    expect(text).toBe('[aws-access-token] config/prod.env:3 — AWS access key');
+    expect(text).not.toContain(secret.slice(0, 8));
   });
 });
 
