@@ -25,7 +25,7 @@ export async function claimAuditForRun(auditId: string): Promise<boolean> {
 // cancel's status stands.
 export async function finishAudit(auditId: string, status: 'done' | 'failed'): Promise<boolean> {
   const result = await db.query(
-    `UPDATE audits SET status = $1 WHERE id = $2 AND status = 'running' RETURNING id`,
+    `UPDATE audits SET status = $1, completed_at = NOW() WHERE id = $2 AND status = 'running' RETURNING id`,
     [status, auditId]
   );
   return result.rowCount === 1;

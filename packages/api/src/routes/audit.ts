@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
 import bcrypt from 'bcrypt';
 import { db } from '../db/client';
+import { SEVERITY_ORDER_SQL } from '../db/severity';
 import { enqueueAudit } from '../queue/auditQueue';
 import { requireAuth, optionalAuth, AuthRequest } from '../middleware/auth';
 
@@ -138,7 +139,7 @@ auditRouter.get('/:id', async (req, res) => {
     [req.params.id]
   );
   const findings = await db.query(
-    'SELECT * FROM findings WHERE audit_id = $1 ORDER BY severity, created_at',
+    `SELECT * FROM findings WHERE audit_id = $1 ORDER BY ${SEVERITY_ORDER_SQL}, created_at`,
     [req.params.id]
   );
 
@@ -164,7 +165,7 @@ auditRouter.post('/:id/cancel', optionalAuth, async (req: AuthRequest, res) => {
   if (!ownership.ok) { res.status(ownership.status).json({ error: ownership.error }); return; }
 
   const result = await db.query(
-    `UPDATE audits SET status = 'failed' WHERE id = $1 AND status IN ('queued', 'running') RETURNING id`,
+    `UPDATE audits SET status = 'failed', completed_at = NOW() WHERE id = $1 AND status IN ('queued', 'running') RETURNING id`,
     [req.params.id]
   );
   if (!result.rows[0]) { res.status(404).json({ error: 'Audit not found or already finished' }); return; }

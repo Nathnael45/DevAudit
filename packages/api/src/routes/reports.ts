@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { db } from '../db/client';
+import { SEVERITY_ORDER_SQL } from '../db/severity';
 
 export const reportsRouter = Router();
 
@@ -14,9 +15,7 @@ reportsRouter.get('/:slug', async (req, res) => {
 
   const findings = await db.query(
     `SELECT * FROM findings WHERE audit_id = $1
-     ORDER BY CASE severity
-       WHEN 'critical' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3
-       WHEN 'low' THEN 4 ELSE 5 END`,
+     ORDER BY ${SEVERITY_ORDER_SQL}`,
     [audit.rows[0].id]
   );
 

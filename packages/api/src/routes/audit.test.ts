@@ -105,6 +105,19 @@ describe('GET /api/audits/recent and /api/audits/:id', () => {
     const res = await request(app).get('/api/audits/00000000-0000-0000-0000-000000000000');
     expect(res.status).toBe(404);
   });
+
+  it('orders findings by severity rank, not alphabetically', async () => {
+    const { auditId } = await createAudit();
+    for (const severity of ['low', 'info', 'critical', 'medium', 'high']) {
+      await db.query(
+        'INSERT INTO findings (audit_id, severity, title) VALUES ($1, $2, $3)',
+        [auditId, severity, `${severity} finding`]
+      );
+    }
+
+    const res = await request(app).get(`/api/audits/${auditId}`);
+    expect(res.body.findings.map((f: any) => f.severity)).toEqual(['critical', 'high', 'medium', 'low', 'info']);
+  });
 });
 
 describe('DELETE /api/audits/:id', () => {
@@ -163,8 +176,9 @@ describe('POST /api/audits/:id/cancel', () => {
     const res = await request(app).post(`/api/audits/${auditId}/cancel`).set('X-Owner-Token', ownerToken);
     expect(res.status).toBe(200);
 
-    const stored = await db.query('SELECT status FROM audits WHERE id = $1', [auditId]);
+    const stored = await db.query('SELECT status, completed_at FROM audits WHERE id = $1', [auditId]);
     expect(stored.rows[0].status).toBe('failed');
+    expect(stored.rows[0].completed_at).not.toBeNull();
   });
 
   it('returns 404 when cancelling an audit that already finished', async () => {
