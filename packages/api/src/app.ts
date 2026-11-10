@@ -8,6 +8,17 @@ import { internalRouter } from './routes/internal';
 
 const app = express();
 
+// Behind Cloudflare Tunnel every request reaches us over cloudflared's
+// connection, so without this req.ip is the tunnel's address — every visitor
+// shares one rate-limit bucket. TRUST_PROXY is the number of proxy hops to
+// trust in X-Forwarded-For (1 for Cloudflare Tunnel). Left off by default:
+// with no proxy in front, trusting X-Forwarded-For would let any client pick
+// its own IP (including 127.0.0.1, which skips the limiter entirely).
+const trustProxyHops = Number(process.env.TRUST_PROXY);
+if (Number.isInteger(trustProxyHops) && trustProxyHops > 0) {
+  app.set('trust proxy', trustProxyHops);
+}
+
 // Restrict to the actual frontend origin rather than '*' — audits can carry an
 // Authorization bearer token, and a wildcard origin means any site's JS could
 // read authenticated responses if a token ever ended up somewhere a browser

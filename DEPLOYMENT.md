@@ -5,7 +5,7 @@ the project — see the main [README](README.md) for that.
 
 ## Upgrading an existing deployment
 
-Verified against a real local volume that predated these changes — all four steps were
+Steps 1–4 were verified against a real local volume that predated these changes — all four were
 needed, not just the first one people usually remember.
 
 1. The `audits` table gained an `owner_token_hash` column (used to authorize audit
@@ -45,6 +45,21 @@ needed, not just the first one people usually remember.
    the bundle. Leaving both blank is almost always what you want — it
    preserves the automatic same-host detection that lets the demo survive an
    IP change without a rebuild.
+
+5. **Set `TRUST_PROXY=1` in `.env`** behind Cloudflare Tunnel, then
+   `docker compose up -d api`. Without it the API sees every request as coming
+   from cloudflared, so the 100-audits-per-hour limit is shared by *all*
+   visitors instead of applied per IP. To verify, submit from two different
+   networks (e.g. home Wi-Fi and a phone hotspot) and check that each response's
+   `RateLimit-Remaining` header counts down separately:
+   ```bash
+   curl -s -o /dev/null -D - -X POST https://<api-host>/api/audits \
+     -H 'Content-Type: application/json' -d '{}' | grep -i ratelimit-remaining
+   ```
+   (An empty body is rejected with 400 and creates nothing, but still counts
+   against the limit.) Keep port 3001 closed to the internet in the EC2
+   security group: if clients can reach the API directly, bypassing Cloudflare,
+   they can forge `X-Forwarded-For`.
 
 ## Cloudflare Tunnel notes
 

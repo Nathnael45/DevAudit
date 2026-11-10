@@ -22,10 +22,23 @@ function zodErrorMessage(error: z.ZodError): string {
   return error.issues[0]?.message ?? 'Invalid request';
 }
 
+// Site-wide cap on audits started per rolling 24h. Each audit makes one paid
+// Claude call, and the per-IP limiter in app.ts doesn't bound total spend —
+// many visitors (or one with many IPs) could still run up the bill.
+const DAILY_AUDIT_CAP = Number(process.env.DAILY_AUDIT_CAP) || 50;
+
 // POST /api/audits — start a new audit
 auditRouter.post('/', optionalAuth, async (req: AuthRequest, res) => {
   const parsed = startSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: zodErrorMessage(parsed.error) }); return; }
+
+  const recent = await db.query(
+    `SELECT COUNT(*)::int AS count FROM audits WHERE created_at > NOW() - INTERVAL '24 hours'`
+  );
+  if (recent.rows[0].count >= DAILY_AUDIT_CAP) {
+    res.status(429).json({ error: 'DevAudit has hit its daily audit limit. Please try again tomorrow.' });
+    return;
+  }
 
   const auditId = uuidv4();
   const publicSlug = auditId.slice(0, 8);

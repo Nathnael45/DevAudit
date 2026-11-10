@@ -150,5 +150,7 @@ Upgrading an existing deployment, or curious about the Cloudflare Tunnel setup? 
 | `NEXT_PUBLIC_WS_URL` | WebSocket base URL (browser-facing) |
 | `INTERNAL_API_URL` | API base URL (server-side, uses Docker hostname) |
 | `WEB_URL` | The only origin the API's CORS policy allows — must match wherever `web` is actually served |
+| `TRUST_PROXY` | Proxy hops in front of the API (`1` behind Cloudflare Tunnel, `0` otherwise) — without it the rate limit is shared by every visitor |
+| `DAILY_AUDIT_CAP` | Site-wide max audits per rolling 24h (default 50) — caps Claude API spend |
 
 </details>

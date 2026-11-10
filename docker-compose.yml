@@ -43,6 +43,11 @@ services:
       # CORS is restricted to this origin (see app.ts) — must match wherever
       # the web app is actually reachable, not just the local default.
       WEB_URL: ${WEB_URL:-http://localhost:3000}
+      # Proxy hops to trust for the client IP (rate limiting). 1 behind
+      # Cloudflare Tunnel; 0 when clients hit the API directly.
+      TRUST_PROXY: ${TRUST_PROXY:-0}
+      # Site-wide max audits per rolling 24h — bounds Claude API spend.
+      DAILY_AUDIT_CAP: ${DAILY_AUDIT_CAP:-50}
     depends_on:
       postgres:
         condition: service_healthy

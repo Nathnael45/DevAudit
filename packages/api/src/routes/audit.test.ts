@@ -64,6 +64,25 @@ describe('POST /api/audits', () => {
     const stored = await db.query('SELECT user_id FROM audits WHERE id = $1', [auditId]);
     expect(stored.rows[0].user_id).toBe(userId);
   });
+
+  it('refuses new audits with 429 once the site-wide daily cap is reached', async () => {
+    // Backfill 50 audits (the default cap) created within the last 24h.
+    await db.query(
+      `INSERT INTO audits (repo_url, status) SELECT 'https://github.com/a/b', 'done' FROM generate_series(1, 50)`
+    );
+    const res = await request(app).post('/api/audits').send({ repoUrl: 'https://github.com/octocat/Hello-World' });
+    expect(res.status).toBe(429);
+    expect(res.body.error).toMatch(/daily audit limit/);
+  });
+
+  it('does not count audits older than 24h toward the daily cap', async () => {
+    await db.query(
+      `INSERT INTO audits (repo_url, status, created_at)
+       SELECT 'https://github.com/a/b', 'done', NOW() - INTERVAL '25 hours' FROM generate_series(1, 50)`
+    );
+    const res = await request(app).post('/api/audits').send({ repoUrl: 'https://github.com/octocat/Hello-World' });
+    expect(res.status).toBe(202);
+  });
 });
 
 describe('GET /api/audits/recent and /api/audits/:id', () => {
