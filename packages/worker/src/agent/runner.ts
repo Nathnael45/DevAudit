@@ -3,10 +3,21 @@ import { cloneRepo, cleanupRepo } from '../scanner/gitClone';
 import { runSemgrep } from '../scanner/semgrep';
 import { runBandit } from '../scanner/bandit';
 import { runGitleaks } from '../scanner/gitleaks';
-import { updateAuditStatus, updateAuditTimings, saveEvent, saveFinding } from '../utils/db';
+import { claimAuditForRun, finishAudit, isAuditStillRunning, updateAuditTimings, saveEvent, saveFinding } from '../utils/db';
 import { emit } from '../utils/broadcaster';
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+// How often the Claude stream re-checks for a cancel. The stream is the long,
+// paid part of an audit, so it's worth stopping early — but not worth a DB
+// round-trip on every token delta.
+const CANCEL_CHECK_INTERVAL_MS = 5000;
+
+export class AuditCancelledError extends Error {
+  constructor() {
+    super('Audit was cancelled');
+  }
+}
 
 // Runs fn, reporting how long it took alongside its result — used so the three
 // scanners can be timed individually while still running concurrently, which is
@@ -65,14 +76,25 @@ export async function runAudit({ auditId, repoUrl }: { auditId: string; repoUrl:
     console.log(`[agent][${auditId}] ${msg}`);
   }
 
+  // Scanner subprocesses can't be interrupted cleanly, so cancellation is
+  // checked between phases (and periodically during the Claude stream).
+  async function throwIfCancelled() {
+    if (!(await isAuditStillRunning(auditId))) throw new AuditCancelledError();
+  }
+
+  if (!(await claimAuditForRun(auditId))) {
+    console.log(`[agent][${auditId}] skipped — cancelled or deleted before it started`);
+    return;
+  }
+
   try {
-    await updateAuditStatus(auditId, 'running');
     emit(auditId, 'status', { status: 'running' });
 
     // 1. Clone
     await thought(`Cloning repository: ${repoUrl}`);
     const [repoPath, cloneMs] = await timed(() => cloneRepo(auditId, repoUrl));
     timings.cloneMs = cloneMs;
+    await throwIfCancelled();
     await thought(`Repository cloned. Starting static analysis...`);
 
     // 2. Static analysis (parallel)
@@ -94,6 +116,7 @@ export async function runAudit({ auditId, repoUrl }: { auditId: string; repoUrl:
     timings.semgrepMs = semgrepMs;
     timings.banditMs = banditMs;
     timings.gitleaksMs = gitleaksMs;
+    await throwIfCancelled();
 
     const SEMGREP_LIMIT = 30;
     const BANDIT_LIMIT = 30;
@@ -163,6 +186,7 @@ Please analyze these findings, think through each one carefully, identify real v
     let fullText = '';
     let textBuffer = '';
     let lastFlush = Date.now();
+    let lastCancelCheck = Date.now();
 
     const flushBuffer = () => {
       if (!textBuffer) return;
@@ -191,6 +215,13 @@ Please analyze these findings, think through each one carefully, identify real v
         });
 
         for await (const event of stream) {
+          if (Date.now() - lastCancelCheck > CANCEL_CHECK_INTERVAL_MS) {
+            lastCancelCheck = Date.now();
+            if (!(await isAuditStillRunning(auditId))) {
+              stream.abort();
+              throw new AuditCancelledError();
+            }
+          }
           if (event.type === 'content_block_delta') {
             if (event.delta.type === 'thinking_delta') {
               // skip thinking deltas — too noisy over HTTP
@@ -226,6 +257,7 @@ Please analyze these findings, think through each one carefully, identify real v
       await thought('Warning: could not parse structured findings from AI response.');
     }
 
+    await throwIfCancelled();
     await thought(`AI analysis complete. Saving ${parsedFindings.length} confirmed findings...`);
 
     // 6. Persist findings
@@ -250,16 +282,33 @@ Please analyze these findings, think through each one carefully, identify real v
 
     // 8. Done
     await updateAuditTimings(auditId, timings);
-    await updateAuditStatus(auditId, 'done');
+    const finished = await finishAudit(auditId, 'done');
     await safeCleanup(auditId);
+    if (!finished) {
+      // Cancelled in the narrow window after the last check — the cancel wins.
+      console.log(`[agent][${auditId}] cancelled just before completion; leaving status as-is`);
+      return;
+    }
     emit(auditId, 'status', { status: 'done' });
     await thought(`Audit complete. Found ${parsedFindings.length} vulnerabilities.`);
 
   } catch (err: any) {
+    await updateAuditTimings(auditId, timings); // persist whatever phases completed before the stop
+
+    if (err instanceof AuditCancelledError) {
+      // Not a failure of the job itself — the API already set the status, so
+      // just record why it stopped and let BullMQ mark the job completed.
+      console.log(`[agent][${auditId}] cancelled by owner; stopping`);
+      // Best-effort: if the audit was deleted rather than cancelled, the row
+      // this event would reference is already gone.
+      await saveEvent(auditId, 'thought', 'Audit cancelled.').catch(() => {});
+      await safeCleanup(auditId);
+      return;
+    }
+
     console.error(`[agent][${auditId}] fatal error:`, err);
-    await updateAuditTimings(auditId, timings); // persist whatever phases completed before the failure
     await saveEvent(auditId, 'error', err.message ?? 'Unknown error');
-    await updateAuditStatus(auditId, 'failed');
+    await finishAudit(auditId, 'failed');
     emit(auditId, 'status', { status: 'failed', error: err.message });
     await safeCleanup(auditId);
     throw err;
