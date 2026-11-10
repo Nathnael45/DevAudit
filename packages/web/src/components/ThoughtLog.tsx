@@ -32,6 +32,12 @@ export default function ThoughtLog({ events, thinkingText, analysisText, status 
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [events, analysisText]);
 
+  // The summary event repeats the streamed analysis. Live, analysisText already
+  // shows it; when reopening a finished audit only the saved event exists. Either
+  // way it renders once, as markdown, in the analysis block below.
+  const markdown = analysisText || events.find((ev) => ev.type === 'summary')?.content || '';
+  const logEvents = events.filter((ev) => ev.type !== 'summary');
+
   return (
     <div className="flex flex-col h-full bg-terminal-bg rounded-lg border border-terminal-border overflow-hidden">
       <div className="flex items-center justify-between px-4 py-2 border-b border-terminal-border bg-terminal-surface">
@@ -41,7 +47,7 @@ export default function ThoughtLog({ events, thinkingText, analysisText, status 
 
       <div className="flex-1 overflow-y-auto scrollbar-thin p-4 space-y-1 font-mono text-sm">
         {/* Thought events */}
-        {events.map((ev, i) => (
+        {logEvents.map((ev, i) => (
           <div key={i} className="flex gap-2 leading-relaxed">
             <span className={`shrink-0 ${TYPE_STYLES[ev.type] ?? 'text-terminal-muted'}`}>
               {TYPE_PREFIX[ev.type] ?? '·'}
@@ -55,20 +61,20 @@ export default function ThoughtLog({ events, thinkingText, analysisText, status 
         ))}
 
         {/* Live streaming AI analysis with markdown rendering — strip raw <findings> block */}
-        {analysisText && (
-          <div className="mt-3 border-t border-terminal-border pt-3">
-            <div className="prose prose-sm prose-invert max-w-none
-              prose-headings:text-terminal-text prose-headings:font-bold prose-headings:mt-3 prose-headings:mb-1 prose-headings:font-mono
+        {markdown && (
+          <div className={logEvents.length > 0 ? 'mt-3 border-t border-terminal-border pt-3' : ''}>
+            <div className="prose prose-sm prose-invert max-w-none font-sans
+              prose-headings:text-terminal-text prose-headings:font-bold prose-headings:mt-3 prose-headings:mb-1
               prose-p:text-terminal-muted prose-p:leading-relaxed prose-p:my-1
               prose-strong:text-terminal-text
               prose-em:text-terminal-muted
-              prose-code:text-terminal-green prose-code:bg-terminal-surface prose-code:px-1 prose-code:rounded prose-code:text-xs
+              prose-code:before:content-none prose-code:after:content-none prose-code:text-terminal-green prose-code:bg-terminal-surface prose-code:px-1 prose-code:rounded prose-code:text-xs
               prose-pre:bg-terminal-surface prose-pre:border prose-pre:border-terminal-border prose-pre:rounded
               prose-li:text-terminal-muted prose-li:my-0.5
               prose-ul:my-1 prose-ol:my-1
               prose-blockquote:border-terminal-green prose-blockquote:text-terminal-muted">
               <ReactMarkdown>
-                {analysisText
+                {markdown
                   .replace(/<findings>[\s\S]*?<\/findings>/g, '')  // strip complete block
                   .replace(/<findings>[\s\S]*/g, '\n\n_Summarizing findings..._')  // replace partial block while streaming
                   .trim()}

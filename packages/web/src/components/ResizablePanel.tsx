@@ -47,16 +47,17 @@ export default function ResizablePanel({
   }, [minWidth, maxWidth]);
 
   return (
-    <div ref={containerRef} className="flex flex-1 overflow-hidden">
+    // Below md the panels stack and split the height; the drag width only applies side by side.
+    <div ref={containerRef} className="flex flex-col md:flex-row flex-1 min-h-0 overflow-hidden">
       {/* Left panel */}
-      <div className="flex-1 overflow-hidden min-w-0">
+      <div className="flex-1 overflow-hidden min-w-0 min-h-0">
         {children[0]}
       </div>
 
       {/* Drag handle */}
       <div
         onMouseDown={onMouseDown}
-        className="w-1 shrink-0 bg-terminal-border hover:bg-terminal-green cursor-col-resize transition-colors relative group"
+        className="hidden md:block w-1 shrink-0 bg-terminal-border hover:bg-terminal-green cursor-col-resize transition-colors relative group"
         title="Drag to resize"
       >
         <div className="absolute inset-y-0 -left-1 -right-1" onMouseDown={onMouseDown} />
@@ -64,8 +65,9 @@ export default function ResizablePanel({
 
       {/* Right panel */}
       <div
-        className="shrink-0 overflow-hidden flex flex-col border-l border-terminal-border"
-        style={{ width: rightWidth }}
+        className="h-1/2 md:h-auto w-full md:w-[var(--right-width)] shrink-0 overflow-hidden flex flex-col
+                   border-t md:border-t-0 md:border-l border-terminal-border"
+        style={{ '--right-width': `${rightWidth}px` } as React.CSSProperties}
       >
         {children[1]}
       </div>

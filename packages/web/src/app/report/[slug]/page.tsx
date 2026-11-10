@@ -35,7 +35,7 @@ export default async function ReportPage({ params }: { params: { slug: string } 
   const repoName = audit.repo_url.replace('https://github.com/', '');
 
   return (
-    <div className="max-w-4xl mx-auto px-6 py-12 space-y-10">
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10 sm:py-12 space-y-10">
       {/* Header */}
       <div className="space-y-1">
         <div className="flex items-center gap-2 text-terminal-muted text-xs mb-4">
@@ -43,17 +43,17 @@ export default async function ReportPage({ params }: { params: { slug: string } 
           <span>/</span>
           <span>Report</span>
           <span>/</span>
-          <span className="text-terminal-text">{slug}</span>
+          <span className="text-terminal-text truncate">{slug}</span>
         </div>
-        <h1 className="text-3xl font-bold">{repoName}</h1>
-        <p className="text-terminal-muted text-sm font-mono">{audit.repo_url}</p>
+        <h1 className="text-2xl sm:text-3xl font-mono font-bold break-words">{repoName}</h1>
+        <p className="text-terminal-muted text-sm font-mono break-all">{audit.repo_url}</p>
         <p className="text-terminal-muted text-xs pt-1">
           Audited {new Date(audit.completed_at ?? audit.created_at).toLocaleString()}
         </p>
       </div>
 
       {/* Severity breakdown — clicking jumps to that section */}
-      <div className="grid grid-cols-5 gap-3">
+      <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
         {SEVERITY_ORDER.map((sev) => (
           counts[sev] > 0 ? (
             <a key={sev} href={`#${sev}`}
@@ -73,7 +73,7 @@ export default async function ReportPage({ params }: { params: { slug: string } 
 
       {/* AI Summary */}
       {summary && (
-        <div className="bg-terminal-surface border border-terminal-border rounded-lg p-6 space-y-3">
+        <div className="bg-terminal-surface border border-terminal-border rounded-lg p-4 sm:p-6 space-y-3">
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-terminal-green" />
             <h2 className="text-xs uppercase tracking-widest text-terminal-muted">AI Analysis Summary</h2>
@@ -82,7 +82,7 @@ export default async function ReportPage({ params }: { params: { slug: string } 
             prose-headings:text-terminal-text prose-headings:font-bold prose-headings:mt-4 prose-headings:mb-2
             prose-p:text-terminal-text prose-p:leading-relaxed
             prose-strong:text-terminal-green
-            prose-code:text-terminal-green prose-code:bg-terminal-bg prose-code:px-1 prose-code:rounded
+            prose-code:before:content-none prose-code:after:content-none prose-code:text-terminal-green prose-code:bg-terminal-bg prose-code:px-1 prose-code:rounded
             prose-li:text-terminal-text prose-ul:my-2 prose-ol:my-2
             prose-a:text-terminal-blue">
             <ReactMarkdown>{summary}</ReactMarkdown>
@@ -124,7 +124,7 @@ export default async function ReportPage({ params }: { params: { slug: string } 
       )}
 
       {/* Footer */}
-      <div className="border-t border-terminal-border pt-6 flex items-center justify-between text-xs text-terminal-muted">
+      <div className="border-t border-terminal-border pt-6 flex flex-wrap items-center justify-between gap-3 text-xs text-terminal-muted">
         <span>Report ID: {slug}</span>
         <Link href="/" className="text-terminal-green hover:underline">Run another audit →</Link>
       </div>

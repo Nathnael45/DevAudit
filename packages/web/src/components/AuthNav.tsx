@@ -27,7 +27,7 @@ export default function AuthNav() {
   }
 
   return (
-    <div className="flex items-center gap-4 text-sm">
+    <div className="flex items-center gap-3 sm:gap-4 text-sm">
       <Link href="/my-audits" className="text-terminal-muted hover:text-terminal-text transition-colors">
         My Audits
       </Link>
@@ -43,7 +43,8 @@ export default function AuthNav() {
           <Link href="/login" className="text-terminal-muted hover:text-terminal-text transition-colors">
             Sign in
           </Link>
-          <Link href="/register" className="text-terminal-green hover:underline">
+          {/* Hidden on phones to fit the nav; the sign-in page links to registration */}
+          <Link href="/register" className="hidden sm:inline text-terminal-green hover:underline">
             Register
           </Link>
         </>

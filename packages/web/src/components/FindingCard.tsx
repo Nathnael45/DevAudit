@@ -23,28 +23,32 @@ export default function FindingCard({ finding }: { finding: Finding }) {
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <div
-      className={`border rounded-lg p-4 cursor-pointer transition-all ${SEVERITY_STYLES[finding.severity] ?? SEVERITY_STYLES.info}`}
-      onClick={() => setExpanded(!expanded)}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className={`text-xs px-2 py-0.5 rounded font-bold uppercase shrink-0 ${SEVERITY_BADGE[finding.severity]}`}>
-            {finding.severity}
-          </span>
-          <span className="text-terminal-text font-medium truncate">{finding.title}</span>
+    <div className={`border rounded-lg ${SEVERITY_STYLES[finding.severity] ?? SEVERITY_STYLES.info}`}>
+      <button
+        type="button"
+        onClick={() => setExpanded(!expanded)}
+        aria-expanded={expanded}
+        className="w-full text-left p-4 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-terminal-green"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start gap-2 min-w-0">
+            <span className={`text-xs px-2 py-0.5 mt-0.5 rounded font-bold uppercase shrink-0 ${SEVERITY_BADGE[finding.severity]}`}>
+              {finding.severity}
+            </span>
+            <span className="text-terminal-text font-medium break-words min-w-0">{finding.title}</span>
+          </div>
+          <span className="text-terminal-muted text-xs shrink-0 mt-1" aria-hidden>{expanded ? '▲' : '▼'}</span>
         </div>
-        <span className="text-terminal-muted text-xs shrink-0">{expanded ? '▲' : '▼'}</span>
-      </div>
 
-      {finding.filePath && (
-        <p className="text-terminal-muted text-xs mt-1 font-mono">
-          {finding.filePath}{finding.lineStart ? `:${finding.lineStart}` : ''}
-        </p>
-      )}
+        {finding.filePath && (
+          <p className="text-terminal-muted text-xs mt-1 font-mono break-all">
+            {finding.filePath}{finding.lineStart ? `:${finding.lineStart}` : ''}
+          </p>
+        )}
+      </button>
 
       {expanded && (
-        <div className="mt-4 space-y-3 text-sm">
+        <div className="px-4 pb-4 space-y-3 text-sm">
           <div>
             <p className="text-terminal-muted text-xs uppercase tracking-wide mb-1">Description</p>
             <p className="text-terminal-text">{finding.description}</p>

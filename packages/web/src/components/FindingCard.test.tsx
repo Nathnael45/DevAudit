@@ -25,14 +25,16 @@ describe('FindingCard', () => {
 
   it('reveals description, recommendation, and category on click, and hides them again on a second click', () => {
     render(<FindingCard finding={finding} />);
-    const card = screen.getByText('Unsanitized SQL query').closest('div[class*="border"]')!;
+    const toggle = screen.getByRole('button', { name: /Unsanitized SQL query/ });
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
 
-    fireEvent.click(card);
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
     expect(screen.getByText(finding.description)).toBeTruthy();
     expect(screen.getByText(finding.recommendation)).toBeTruthy();
     expect(screen.getByText('sql-injection')).toBeTruthy();
 
-    fireEvent.click(card);
+    fireEvent.click(toggle);
     expect(screen.queryByText(finding.description)).toBeNull();
   });
 

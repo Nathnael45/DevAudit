@@ -4,7 +4,10 @@ const config: Config = {
   content: ['./src/**/*.{ts,tsx}'],
   theme: {
     extend: {
-      fontFamily: { mono: ['JetBrains Mono', 'Fira Code', 'monospace'] },
+      fontFamily: {
+        sans: ['var(--font-sans)', 'system-ui', 'sans-serif'],
+        mono: ['var(--font-mono)', 'ui-monospace', 'monospace'],
+      },
       colors: {
         terminal: {
           bg: '#0d1117',

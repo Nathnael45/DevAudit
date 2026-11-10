@@ -74,7 +74,7 @@ export default function RegisterPage() {
           <p className="text-terminal-muted text-xs mt-1">At least 8 characters.</p>
         </div>
 
-        {error && <p className="text-terminal-red text-sm font-mono">{error}</p>}
+        {error && <p className="text-terminal-red text-sm">{error}</p>}
 
         <button
           type="submit"

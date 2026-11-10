@@ -49,27 +49,27 @@ export default function HomePage() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto px-6 py-16 space-y-16">
+    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-12 sm:py-16 space-y-16">
       {/* Hero */}
       <div className="space-y-8">
         <div className="space-y-3">
-          <h1 className="text-5xl font-bold tracking-tight">
+          <h1 className="text-4xl sm:text-5xl font-bold tracking-tight">
             Security Audit<span className="text-terminal-green">.</span>
           </h1>
-          <p className="text-terminal-muted text-xl">
+          <p className="text-terminal-muted text-lg sm:text-xl">
             Drop a GitHub repo. Watch AI hunt for vulnerabilities in real time.
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-3">
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2">
             <input
               type="url"
               value={repoUrl}
               onChange={(e) => setRepoUrl(e.target.value)}
               placeholder="https://github.com/owner/repo"
               required
-              className="flex-1 bg-terminal-surface border border-terminal-border rounded-lg px-4 py-3
+              className="flex-1 min-w-0 bg-terminal-surface border border-terminal-border rounded-lg px-4 py-3
                          text-terminal-text placeholder-terminal-muted focus:outline-none
                          focus:border-terminal-green transition-colors font-mono text-sm"
             />
@@ -83,17 +83,16 @@ export default function HomePage() {
               {loading ? '...' : 'Run Audit'}
             </button>
           </div>
-          {error && <p className="text-terminal-red text-sm font-mono">{error}</p>}
+          {error && <p className="text-terminal-red text-sm">{error}</p>}
         </form>
 
-        <div className="flex items-center gap-6 text-xs text-terminal-muted">
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-terminal-muted">
           {[
             { label: 'Semgrep + Bandit + Gitleaks' },
             { label: 'AI reasoning live' },
             { label: 'Shareable report URL' },
-          ].map(({ label }, i) => (
+          ].map(({ label }) => (
             <span key={label} className="flex items-center gap-2">
-              {i > 0 && <span className="text-terminal-border">·</span>}
               <span className="text-terminal-green">✓</span>
               {label}
             </span>

@@ -43,7 +43,7 @@ export default function AuditPage({ params }: { params: { id: string } }) {
   return (
     <div className="flex flex-col h-[calc(100vh-57px)]">
       {/* Sub-header */}
-      <div className="flex items-center justify-between px-6 py-2.5 border-b border-terminal-border bg-terminal-surface/50">
+      <div className="flex items-center justify-between gap-4 px-4 sm:px-6 py-2.5 border-b border-terminal-border bg-terminal-surface/50">
         <div className="flex items-center gap-4 min-w-0">
           <Link href="/" className="text-terminal-muted hover:text-terminal-text text-xs transition-colors shrink-0">← Home</Link>
           <span className="text-terminal-border">|</span>
@@ -56,8 +56,9 @@ export default function AuditPage({ params }: { params: { id: string } }) {
           )}
         </div>
         <div className="flex items-center gap-4 shrink-0">
+          {/* Counts are hidden on small screens; the findings panel lists them */}
           {severityOrder.filter(s => severityCounts[s]).map(sev => (
-            <span key={sev} className="text-xs font-mono text-terminal-muted">
+            <span key={sev} className="hidden md:inline text-xs font-mono text-terminal-muted">
               <span className={`font-bold ${sev === 'critical' ? 'text-red-400' : sev === 'high' ? 'text-orange-400' : sev === 'medium' ? 'text-yellow-400' : 'text-blue-400'}`}>
                 {severityCounts[sev]}
               </span> {sev}
@@ -86,7 +87,7 @@ export default function AuditPage({ params }: { params: { id: string } }) {
 
       {/* Main layout — resizable */}
       <ResizablePanel defaultRightWidth={420}>
-        <div className="p-4 h-full overflow-hidden">
+        <div className="p-2 sm:p-4 h-full overflow-hidden">
           <ThoughtLog
             events={events}
             thinkingText={thinkingText}
