@@ -82,7 +82,7 @@ Browser
 
 ## Testing
 
-156 automated tests (Vitest) across all three packages — 47 for the API (integration-tested against a real Postgres via `supertest`, not a mocked database), 52 for the frontend, 57 for the worker. GitHub Actions runs lint, typecheck, and the full suite — with a live Postgres service container — on every push.
+158 automated tests (Vitest) across all three packages — 49 for the API (integration-tested against a real Postgres via `supertest`, not a mocked database), 52 for the frontend, 57 for the worker. GitHub Actions runs lint, typecheck, and the full suite — with a live Postgres service container — on every push.
 
 This isn't just a coverage number: the test suite has caught a real bug (a function that could silently return `undefined` instead of `false`), and every performance claim in this README is backed by a real query against production data rather than an estimate — see [Key design decisions](#key-design-decisions) above.
 

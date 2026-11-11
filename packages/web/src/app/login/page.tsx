@@ -26,7 +26,10 @@ export default function LoginPage() {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error('Incorrect email or password.');
+      if (!res.ok) {
+        // A rate-limited user shouldn't be told their password is wrong.
+        throw new Error(res.status === 429 ? data.error : 'Incorrect email or password.');
+      }
 
       saveAuth(data.token, email);
       await claimAnonymousAudits(data.token);

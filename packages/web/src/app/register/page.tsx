@@ -27,7 +27,11 @@ export default function RegisterPage() {
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(res.status === 409 ? 'That email is already registered.' : 'Could not create an account — check your email and use a password of at least 8 characters.');
+        throw new Error(
+          res.status === 409 ? 'That email is already registered.'
+          : res.status === 429 ? data.error
+          : 'Could not create an account — check your email and use a password of at least 8 characters.'
+        );
       }
 
       saveAuth(data.token, email);

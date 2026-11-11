@@ -1,3 +1,11 @@
+# Docker's default json-file logging never rotates, so logs would slowly fill
+# the disk. Every service keeps at most 3 x 10 MB of logs.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   # Not published to the host — only api/worker need to reach these, over the
   # docker network. Use `docker compose exec postgres psql -U devaudit` (or the
@@ -5,6 +13,7 @@ services:
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
+    logging: *default-logging
     environment:
       POSTGRES_USER: devaudit
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
@@ -21,6 +30,7 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
+    logging: *default-logging
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -32,6 +42,7 @@ services:
       context: .
       dockerfile: packages/api/Dockerfile
     restart: unless-stopped
+    logging: *default-logging
     ports:
       - "3001:3001"
     environment:
@@ -61,6 +72,7 @@ services:
       context: ./packages/worker
       dockerfile: Dockerfile
     restart: unless-stopped
+    logging: *default-logging
     environment:
       DATABASE_URL: postgresql://devaudit:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/devaudit
       REDIS_URL: redis://redis:6379
@@ -92,6 +104,7 @@ services:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-}
         NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL:-}
     restart: unless-stopped
+    logging: *default-logging
     ports:
       - "3000:3000"
     environment:

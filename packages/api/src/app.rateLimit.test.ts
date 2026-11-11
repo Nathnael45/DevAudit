@@ -68,3 +68,28 @@ describe('audit rate limiter behind a proxy', () => {
     expect(res.headers['ratelimit-remaining']).toBeUndefined();
   });
 });
+
+describe('sign-in rate limiter', () => {
+  it('refuses the 11th login attempt from one client within 15 minutes', async () => {
+    const app = await loadApp('1');
+    const login = (ip: string) =>
+      request(app).post('/api/auth/login').set('X-Forwarded-For', ip).send({}); // invalid body: 400, no DB needed
+
+    for (let i = 0; i < 10; i++) expect((await login('203.0.113.77')).status).toBe(400);
+
+    const blocked = await login('203.0.113.77');
+    expect(blocked.status).toBe(429);
+    expect(blocked.body.error).toMatch(/Too many sign-in attempts/);
+
+    expect((await login('198.51.100.9')).status).toBe(400); // other visitors unaffected
+  });
+
+  it('applies to registration too', async () => {
+    const app = await loadApp('1');
+    for (let i = 0; i < 10; i++) {
+      await request(app).post('/api/auth/register').set('X-Forwarded-For', '203.0.113.78').send({});
+    }
+    const blocked = await request(app).post('/api/auth/register').set('X-Forwarded-For', '203.0.113.78').send({});
+    expect(blocked.status).toBe(429);
+  });
+});

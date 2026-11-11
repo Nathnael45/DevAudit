@@ -43,8 +43,21 @@ const auditLimiter = rateLimit({
   skip: isLocalhost,
 });
 
+// Login and registration: 10 attempts per IP per 15 minutes. Without a limit,
+// passwords can be guessed as fast as requests can be sent, and accounts can be
+// created in bulk. Counts every attempt (not just failures) so it also caps
+// sign-up spam; a real person rarely needs more than a few tries.
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: { error: 'Too many sign-in attempts. Please try again in 15 minutes.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: isLocalhost,
+});
+
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
-app.use('/api/auth', authRouter);
+app.use('/api/auth', authLimiter, authRouter);
 app.post('/api/audits', auditLimiter);
 app.use('/api/audits', auditRouter);
 app.use('/api/reports', reportsRouter);
