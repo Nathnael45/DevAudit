@@ -14,9 +14,9 @@ Drop a GitHub URL and watch the AI clone the repo, run static analysis, and reas
 
 | Repository | Report | Notes |
 |------------|--------|-------|
-| [mitmproxy/mitmproxy](https://github.com/mitmproxy/mitmproxy) | [View report](https://devaudit.nathnaeltesfaw.dev/report/449f35ae) | 17 confirmed findings, incl. a high-severity GitHub Actions shell-injection issue |
-| [sherlock-project/sherlock](https://github.com/sherlock-project/sherlock) | [View report](https://devaudit.nathnaeltesfaw.dev/report/c5f0333e) | 56 raw scanner hits triaged down to 0 real findings |
-| [OWASP/WebGoat](https://github.com/WebGoat/WebGoat) | [View report](https://devaudit.nathnaeltesfaw.dev/report/8027ee44) | 188 raw Semgrep hits reviewed, 13 confirmed findings |
+| [mitmproxy/mitmproxy](https://github.com/mitmproxy/mitmproxy) | [View report](https://devaudit.nathnaeltesfaw.dev/report/e8e09d38) | 4,930 raw scanner alerts triaged down to 17 confirmed findings, incl. a high-severity GitHub Actions shell-injection issue |
+| [sherlock-project/sherlock](https://github.com/sherlock-project/sherlock) | [View report](https://devaudit.nathnaeltesfaw.dev/report/a97bb3b3) | 56 raw scanner alerts triaged down to 8 confirmed findings, incl. a high-severity GitHub Actions shell-injection issue |
+| [OWASP/WebGoat](https://github.com/WebGoat/WebGoat) | [View report](https://devaudit.nathnaeltesfaw.dev/report/15fbe00b) | 231 raw scanner alerts (213 from Semgrep) triaged down to 11 confirmed findings |
 
 ---
 
@@ -80,7 +80,7 @@ Browser
 
 ## Testing
 
-102 automated tests (Vitest) across all three packages — 38 for the API (integration-tested against a real Postgres via `supertest`, not a mocked database), 33 for the frontend, 31 for the worker. GitHub Actions runs lint, typecheck, and the full suite — with a live Postgres service container — on every push.
+147 automated tests (Vitest) across all three packages — 46 for the API (integration-tested against a real Postgres via `supertest`, not a mocked database), 52 for the frontend, 49 for the worker. GitHub Actions runs lint, typecheck, and the full suite — with a live Postgres service container — on every push.
 
 This isn't just a coverage number: the test suite has caught a real bug (a function that could silently return `undefined` instead of `false`), and every performance claim in this README is backed by a real query against production data rather than an estimate — see [Key design decisions](#key-design-decisions) above.
 
