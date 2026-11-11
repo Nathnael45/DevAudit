@@ -1,10 +1,14 @@
 *.pem
+*.key
+id_rsa*
+id_ed25519*
 node_modules/
 dist/
+# Env files hold real secrets — ignore every variant (backups, per-environment
+# copies) and allow only the placeholder template.
 .env
-.env.production
-.env.local
-.env.*.local
+.env.*
+!.env.example
 *.log
 .next/
 .turbo/
@@ -14,3 +18,12 @@ next-env.d.ts
 .DS_Store
 /tmp/
 /repos/
+
+# Claude Code: personal, per-machine files (shared .claude/settings.json is fine to commit)
+.claude/settings.local.json
+CLAUDE.local.md
+
+# Editors / tooling
+.idea/
+.vscode/
+.vercel/
