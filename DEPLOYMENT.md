@@ -48,7 +48,7 @@ needed, not just the first one people usually remember.
 
 5. **Set `TRUST_PROXY=1` in `.env`** behind Cloudflare Tunnel, then
    `docker compose up -d api`. Without it the API sees every request as coming
-   from cloudflared, so the 100-audits-per-hour limit is shared by *all*
+   from cloudflared, so the 10-audits-per-hour limit is shared by *all*
    visitors instead of applied per IP. To verify, submit from two different
    networks (e.g. home Wi-Fi and a phone hotspot) and check that each response's
    `RateLimit-Remaining` header counts down separately:

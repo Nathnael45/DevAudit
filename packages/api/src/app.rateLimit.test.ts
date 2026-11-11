@@ -28,10 +28,10 @@ describe('audit rate limiter behind a proxy', () => {
     const a2 = await submit(app, '203.0.113.1');
     const b1 = await submit(app, '198.51.100.7');
 
-    expect(a1.headers['ratelimit-remaining']).toBe('99');
-    expect(a2.headers['ratelimit-remaining']).toBe('98');
-    // A different visitor through the same proxy starts fresh, not at 97.
-    expect(b1.headers['ratelimit-remaining']).toBe('99');
+    expect(a1.headers['ratelimit-remaining']).toBe('9');
+    expect(a2.headers['ratelimit-remaining']).toBe('8');
+    // A different visitor through the same proxy starts fresh, not at 7.
+    expect(b1.headers['ratelimit-remaining']).toBe('9');
   });
 
   it('uses the client Cloudflare appended, not a spoofed leading entry', async () => {
@@ -41,7 +41,21 @@ describe('audit rate limiter behind a proxy', () => {
     const res = await submit(app, '127.0.0.1, 203.0.113.9');
 
     // Not treated as localhost (which would skip the limiter and omit headers).
-    expect(res.headers['ratelimit-remaining']).toBe('99');
+    expect(res.headers['ratelimit-remaining']).toBe('9');
+  });
+
+  it('refuses the 11th submission from one client within the hour', async () => {
+    const app = await loadApp('1');
+    for (let i = 0; i < 10; i++) {
+      expect((await submit(app, '203.0.113.50')).status).toBe(400); // counted, then rejected as invalid
+    }
+
+    const blocked = await submit(app, '203.0.113.50');
+    expect(blocked.status).toBe(429);
+    expect(blocked.body.error).toMatch(/Too many audits/);
+
+    // Other visitors are unaffected.
+    expect((await submit(app, '198.51.100.8')).status).toBe(400);
   });
 
   it('ignores X-Forwarded-For when TRUST_PROXY is unset', async () => {

@@ -30,10 +30,13 @@ app.use(express.json());
 const isLocalhost = (req: express.Request) =>
   req.ip === '127.0.0.1' || req.ip === '::1' || req.ip === '::ffff:127.0.0.1';
 
-// Max 100 audit submissions per IP per hour
+// Max 10 audit submissions per IP per hour. This is the fairness limit: it has
+// to sit well below the site-wide DAILY_AUDIT_CAP (50/24h, routes/audit.ts),
+// or one visitor could use up the whole day's budget and lock everyone else
+// out. The daily cap is the spend backstop for clients spread across many IPs.
 const auditLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
-  max: 100,
+  max: 10,
   message: { error: 'Too many audits from this IP, please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
