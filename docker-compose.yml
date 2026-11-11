@@ -68,6 +68,8 @@ services:
       API_URL: http://api:3001
       INTERNAL_SECRET: ${INTERNAL_SECRET:?set INTERNAL_SECRET in .env}
       REPOS_DIR: /tmp/devaudit-repos
+      # Repos larger than this (GitHub-reported size, incl. history) are refused before cloning.
+      MAX_REPO_SIZE_MB: ${MAX_REPO_SIZE_MB:-1024}
     depends_on:
       postgres:
         condition: service_healthy

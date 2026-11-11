@@ -82,7 +82,7 @@ Browser
 
 ## Testing
 
-148 automated tests (Vitest) across all three packages — 47 for the API (integration-tested against a real Postgres via `supertest`, not a mocked database), 52 for the frontend, 49 for the worker. GitHub Actions runs lint, typecheck, and the full suite — with a live Postgres service container — on every push.
+156 automated tests (Vitest) across all three packages — 47 for the API (integration-tested against a real Postgres via `supertest`, not a mocked database), 52 for the frontend, 57 for the worker. GitHub Actions runs lint, typecheck, and the full suite — with a live Postgres service container — on every push.
 
 This isn't just a coverage number: the test suite has caught a real bug (a function that could silently return `undefined` instead of `false`), and every performance claim in this README is backed by a real query against production data rather than an estimate — see [Key design decisions](#key-design-decisions) above.
 
@@ -155,5 +155,6 @@ Upgrading an existing deployment, or curious about the Cloudflare Tunnel setup? 
 | `WEB_URL` | The only origin the API's CORS policy allows — must match wherever `web` is actually served |
 | `TRUST_PROXY` | Proxy hops in front of the API (`1` behind Cloudflare Tunnel, `0` otherwise) — without it the rate limit is shared by every visitor |
 | `DAILY_AUDIT_CAP` | Site-wide max audits per rolling 24h (default 50) — caps Claude API spend |
+| `MAX_REPO_SIZE_MB` | Repos larger than this (GitHub-reported size) are refused before cloning (default 1024) |
 
 </details>
