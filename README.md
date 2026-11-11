@@ -14,9 +14,9 @@ Drop a GitHub URL and watch the AI clone the repo, run static analysis, and reas
 
 | Repository | Report | Notes |
 |------------|--------|-------|
-| [mitmproxy/mitmproxy](https://github.com/mitmproxy/mitmproxy) | [View report](https://devaudit.nathnaeltesfaw.dev/report/e8e09d38) | 4,930 raw scanner alerts triaged down to 17 confirmed findings, incl. a high-severity GitHub Actions shell-injection issue |
-| [sherlock-project/sherlock](https://github.com/sherlock-project/sherlock) | [View report](https://devaudit.nathnaeltesfaw.dev/report/a97bb3b3) | 56 raw scanner alerts triaged down to 8 confirmed findings, incl. a high-severity GitHub Actions shell-injection issue |
-| [OWASP/WebGoat](https://github.com/WebGoat/WebGoat) | [View report](https://devaudit.nathnaeltesfaw.dev/report/15fbe00b) | 231 raw scanner alerts (213 from Semgrep) triaged down to 11 confirmed findings |
+| [mitmproxy/mitmproxy](https://github.com/mitmproxy/mitmproxy) | [View report](https://devaudit.nathnaeltesfaw.dev/report/e8e09d38) | 4,930 raw scanner alerts; the 80 most severe went to AI review → 17 confirmed findings, incl. a high-severity GitHub Actions shell-injection issue |
+| [sherlock-project/sherlock](https://github.com/sherlock-project/sherlock) | [View report](https://devaudit.nathnaeltesfaw.dev/report/a97bb3b3) | 56 raw scanner alerts; the 49 most severe went to AI review → 8 confirmed findings, incl. a high-severity GitHub Actions shell-injection issue |
+| [OWASP/WebGoat](https://github.com/WebGoat/WebGoat) | [View report](https://devaudit.nathnaeltesfaw.dev/report/15fbe00b) | 231 raw scanner alerts (213 from Semgrep); the 48 most severe went to AI review → 11 confirmed findings |
 
 ---
 
@@ -64,6 +64,8 @@ Browser
 
 **HTTP broadcast over persistent WebSocket** — the worker pushes events to the API via HTTP POST (`/internal/broadcast`) rather than maintaining a persistent WebSocket connection, which proved unreliable across Docker networks. The API then fans out to browser clients.
 
+**Bounded AI review** — noisy repos produce thousands of raw alerts (mitmproxy: 4,862 from Bandit alone), so only the most severe go to Claude: up to 30 Semgrep, 30 Bandit and 20 Gitleaks alerts per audit. This keeps the prompt focused and the cost per audit predictable. Each tool's alerts are sorted by the scanner's own severity before the cutoff, so the slice is the most serious alerts rather than whatever came first in file order, and the live log says when an audit was truncated ("reviewing the 30 highest-severity"). The trade-off: alerts below the cutoff are never reviewed, and many slots can go to repeats of one noisy rule.
+
 **Batched streaming** — Claude token deltas are buffered (300ms or 200 chars) before broadcasting to avoid flooding the HTTP broadcast endpoint with hundreds of tiny requests per second.
 
 **Shallow clone** — `git clone --depth 1` keeps clone times under 10 seconds for most repos and avoids storing full git history on disk.
@@ -89,6 +91,7 @@ This isn't just a coverage number: the test suite has caught a real bug (a funct
 ## Known limitations
 
 - **Static analysis is capped at 300 seconds.** Most repos finish well within that, but the largest monorepo-scale codebases (validated against real frameworks like Django, Rails, Angular, and Spring Boot) can hit that ceiling before Semgrep finishes, resulting in a partial rather than exhaustive scan. This is a known, currently-open constraint — not a silent failure. Raising the limit further trades off against tying up a worker slot longer on a resource-constrained host.
+- **The AI judges scanner output, not source code.** Claude sees each alert's rule, message, file path, line and scanner confidence — not the code itself — so it can rule out obvious noise (tests, vendored code, duplicates, deliberate training vulnerabilities) but can't confirm a flaw is actually reachable. Its review is also non-deterministic: re-running the same repo can confirm a different number of findings.
 - **Low-traffic demo, not a system validated at scale.** Timing and completion-rate numbers in this README come from deliberate test batches run against the live deployment, not from independent production traffic. They're real, reproducible measurements — just not evidence of behavior under concurrent real-world load.
 
 ---
