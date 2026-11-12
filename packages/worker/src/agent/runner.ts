@@ -62,10 +62,22 @@ export function sortBySeverityRank<T>(findings: T[], severityOf: (f: T) => strin
 
 // Makes truncation visible to whoever's watching the live thought stream,
 // instead of silently reviewing an arbitrary subset of the raw findings.
-export function foundMessage(tool: string, count: number, limit: number, unit: string): string {
-  return count > limit
-    ? `${tool} found ${count} potential ${unit} — reviewing the ${limit} highest-severity for deep analysis.`
-    : `${tool} found ${count} potential ${unit}.`;
+// `ordering` says how the reviewed slice was chosen: Semgrep and Bandit alerts
+// are severity-ranked first; Gitleaks has no severity, so its slice is simply
+// the first N in file order — the message must not claim otherwise.
+export function foundMessage(
+  tool: string, count: number, limit: number, unit: string, ordering: 'severity' | 'file' = 'severity',
+): string {
+  if (count <= limit) return `${tool} found ${count} potential ${unit}.`;
+  const which = ordering === 'severity' ? `the ${limit} highest-severity` : `the first ${limit}`;
+  return `${tool} found ${count} potential ${unit} — reviewing ${which} for deep analysis.`;
+}
+
+// The prompt's section heading for one tool's alerts, e.g. "45 total, showing
+// the 30 highest-severity" — or "showing all" when nothing was cut.
+export function shownLabel(count: number, limit: number, ordering: 'severity' | 'file'): string {
+  if (count <= limit) return `${count} total, showing all`;
+  return `${count} total, showing ${ordering === 'severity' ? `the ${limit} highest-severity` : `the first ${limit}`}`;
 }
 
 // Gitleaks reports the matched secret itself (Match/Secret). None of that is
@@ -173,20 +185,24 @@ export async function runAudit({ auditId, repoUrl }: { auditId: string; repoUrl:
 
     const SEMGREP_LIMIT = 30;
     const BANDIT_LIMIT = 30;
-    const GITLEAKS_LIMIT = 20;
+    // Higher than the others on purpose: secrets are rare but high-impact (one
+    // real cloud key outweighs dozens of lint warnings), each line is short
+    // (rule + location, never the secret), and Gitleaks has no severity to rank
+    // by, so a low cap would drop alerts by file order alone.
+    const GITLEAKS_LIMIT = 50;
 
     const sortedSemgrep = sortBySeverityRank(semgrepFindings, f => f.extra.severity, SEMGREP_SEVERITY_RANK);
     const sortedBandit = sortBySeverityRank(banditFindings, f => f.issue_severity, BANDIT_SEVERITY_RANK);
 
     const scanReports = [
-      ['Semgrep', semgrepResult, SEMGREP_LIMIT, 'issues'],
-      ['Bandit', banditResult, BANDIT_LIMIT, 'issues'],
-      ['Gitleaks', gitleaksResult, GITLEAKS_LIMIT, 'secrets'],
+      ['Semgrep', semgrepResult, SEMGREP_LIMIT, 'issues', 'severity'],
+      ['Bandit', banditResult, BANDIT_LIMIT, 'issues', 'severity'],
+      ['Gitleaks', gitleaksResult, GITLEAKS_LIMIT, 'secrets', 'file'],
     ] as const;
-    for (const [tool, result, limit, unit] of scanReports) {
+    for (const [tool, result, limit, unit, ordering] of scanReports) {
       await thought(result.error
         ? `Warning: ${tool} ${result.error} — its results will be missing from this audit.`
-        : foundMessage(tool, result.findings.length, limit, unit));
+        : foundMessage(tool, result.findings.length, limit, unit, ordering));
     }
     await thought(`Passing findings to AI for deep analysis...`);
 
@@ -231,13 +247,13 @@ Finding schema:
 
     const userMessage = `Repository: ${repoUrl}
 
-## Semgrep Findings (${semgrepFindings.length} total, showing first 30):
+## Semgrep Findings (${shownLabel(semgrepFindings.length, SEMGREP_LIMIT, 'severity')}):
 ${scanSection('Semgrep', semgrepResult, semgrepSummary, 'No findings.')}
 
-## Bandit Findings (${banditFindings.length} total, showing first 30):
+## Bandit Findings (${shownLabel(banditFindings.length, BANDIT_LIMIT, 'severity')}):
 ${scanSection('Bandit', banditResult, banditSummary, 'No findings.')}
 
-## Gitleaks Findings — Exposed Secrets (${gitleaksFindings.length} total, showing first 20):
+## Gitleaks Findings — Exposed Secrets (${shownLabel(gitleaksFindings.length, GITLEAKS_LIMIT, 'file')}):
 ${scanSection('Gitleaks', gitleaksResult, gitleaksSummary, 'No secrets found.')}
 
 Please analyze these findings, think through each one carefully, identify real vulnerabilities, and produce your security report.`;

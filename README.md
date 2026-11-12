@@ -15,8 +15,8 @@ Drop a GitHub URL and watch the AI clone the repo, run static analysis, and reas
 | Repository | Report | Notes |
 |------------|--------|-------|
 | [mitmproxy/mitmproxy](https://github.com/mitmproxy/mitmproxy) | [View report](https://devaudit.nathnaeltesfaw.dev/report/e8e09d38) | 4,930 raw scanner alerts; the 80 most severe went to AI review → 17 confirmed findings, incl. a high-severity GitHub Actions shell-injection issue |
-| [sherlock-project/sherlock](https://github.com/sherlock-project/sherlock) | [View report](https://devaudit.nathnaeltesfaw.dev/report/a97bb3b3) | 56 raw scanner alerts; the 49 most severe went to AI review → 8 confirmed findings, incl. a high-severity GitHub Actions shell-injection issue |
-| [OWASP/WebGoat](https://github.com/WebGoat/WebGoat) | [View report](https://devaudit.nathnaeltesfaw.dev/report/15fbe00b) | 231 raw scanner alerts (213 from Semgrep); the 48 most severe went to AI review → 11 confirmed findings |
+| [sherlock-project/sherlock](https://github.com/sherlock-project/sherlock) | [View report](https://devaudit.nathnaeltesfaw.dev/report/a97bb3b3) | 56 raw scanner alerts; 49 went to AI review → 8 confirmed findings, incl. a high-severity GitHub Actions shell-injection issue |
+| [OWASP/WebGoat](https://github.com/WebGoat/WebGoat) | [View report](https://devaudit.nathnaeltesfaw.dev/report/15fbe00b) | 231 raw scanner alerts (213 from Semgrep); 48 went to AI review → 11 confirmed findings |
 
 ---
 
@@ -64,7 +64,7 @@ Browser
 
 **HTTP broadcast over persistent WebSocket** — the worker pushes events to the API via HTTP POST (`/internal/broadcast`) rather than maintaining a persistent WebSocket connection, which proved unreliable across Docker networks. The API then fans out to browser clients.
 
-**Bounded AI review** — noisy repos produce thousands of raw alerts (mitmproxy: 4,862 from Bandit alone), so only the most severe go to Claude: up to 30 Semgrep, 30 Bandit and 20 Gitleaks alerts per audit. This keeps the prompt focused and the cost per audit predictable. Each tool's alerts are sorted by the scanner's own severity before the cutoff, so the slice is the most serious alerts rather than whatever came first in file order, and the live log says when an audit was truncated ("reviewing the 30 highest-severity"). The trade-off: alerts below the cutoff are never reviewed, and many slots can go to repeats of one noisy rule.
+**Bounded AI review** — noisy repos produce thousands of raw alerts (mitmproxy: 4,862 from Bandit alone), so only a bounded slice goes to Claude: up to 30 Semgrep, 30 Bandit and 50 Gitleaks alerts per audit. This keeps the prompt focused and the cost per audit predictable. Semgrep and Bandit alerts are sorted by the scanner's own severity before the cutoff, so their slice is the most serious alerts rather than whatever came first in file order. Gitleaks reports no severity, so its cap is set higher: secrets are rare but high-impact, and each line is short. The live log says when an audit was truncated and how ("reviewing the 30 highest-severity" vs. "reviewing the first 50"). The trade-off: alerts below the cutoff are never reviewed, and many slots can go to repeats of one noisy rule.
 
 **Batched streaming** — Claude token deltas are buffered (300ms or 200 chars) before broadcasting to avoid flooding the HTTP broadcast endpoint with hundreds of tiny requests per second.
 
@@ -82,7 +82,7 @@ Browser
 
 ## Testing
 
-158 automated tests (Vitest) across all three packages — 49 for the API (integration-tested against a real Postgres via `supertest`, not a mocked database), 52 for the frontend, 57 for the worker. GitHub Actions runs lint, typecheck, and the full suite — with a live Postgres service container — on every push.
+161 automated tests (Vitest) across all three packages — 49 for the API (integration-tested against a real Postgres via `supertest`, not a mocked database), 52 for the frontend, 60 for the worker. GitHub Actions runs lint, typecheck, and the full suite — with a live Postgres service container — on every push.
 
 This isn't just a coverage number: the test suite has caught a real bug (a function that could silently return `undefined` instead of `false`), and every performance claim in this README is backed by a real query against production data rather than an estimate — see [Key design decisions](#key-design-decisions) above.
 

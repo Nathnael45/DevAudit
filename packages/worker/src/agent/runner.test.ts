@@ -4,6 +4,7 @@ import {
   isOverloadedError,
   sortBySeverityRank,
   foundMessage,
+  shownLabel,
   formatGitleaksForPrompt,
   scanSection,
   coverageNote,
@@ -113,6 +114,23 @@ describe('foundMessage', () => {
 
   it('treats exactly-at-the-limit as not truncated', () => {
     expect(foundMessage('Gitleaks', 20, 20, 'secrets')).toBe('Gitleaks found 20 potential secrets.');
+  });
+
+  it("doesn't claim severity order for a tool whose slice is by file order (Gitleaks)", () => {
+    expect(foundMessage('Gitleaks', 64, 50, 'secrets', 'file')).toBe(
+      'Gitleaks found 64 potential secrets — reviewing the first 50 for deep analysis.'
+    );
+  });
+});
+
+describe('shownLabel', () => {
+  it('says "all" when nothing was cut', () => {
+    expect(shownLabel(31, 50, 'file')).toBe('31 total, showing all');
+  });
+
+  it('describes how the slice was chosen when truncated', () => {
+    expect(shownLabel(4862, 30, 'severity')).toBe('4862 total, showing the 30 highest-severity');
+    expect(shownLabel(64, 50, 'file')).toBe('64 total, showing the first 50');
   });
 });
 
