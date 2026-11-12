@@ -14,7 +14,7 @@ Drop a GitHub URL and watch the AI clone the repo, run static analysis, and reas
 
 | Repository | Report | Notes |
 |------------|--------|-------|
-| [mitmproxy/mitmproxy](https://github.com/mitmproxy/mitmproxy) | [View report](https://devaudit.nathnaeltesfaw.dev/report/e8e09d38) | 4,930 raw scanner alerts; the 80 most severe went to AI review → 17 confirmed findings, incl. a high-severity GitHub Actions shell-injection issue |
+| [mitmproxy/mitmproxy](https://github.com/mitmproxy/mitmproxy) | [View report](https://devaudit.nathnaeltesfaw.dev/report/34f2c651) | 4,930 raw scanner alerts; 91 went to AI review → 17 confirmed findings, incl. high-severity GitHub Actions shell-injection issues |
 | [sherlock-project/sherlock](https://github.com/sherlock-project/sherlock) | [View report](https://devaudit.nathnaeltesfaw.dev/report/a97bb3b3) | 56 raw scanner alerts; 49 went to AI review → 8 confirmed findings, incl. a high-severity GitHub Actions shell-injection issue |
 | [OWASP/WebGoat](https://github.com/WebGoat/WebGoat) | [View report](https://devaudit.nathnaeltesfaw.dev/report/15fbe00b) | 231 raw scanner alerts (213 from Semgrep); 48 went to AI review → 11 confirmed findings |
 
