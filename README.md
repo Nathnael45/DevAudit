@@ -27,6 +27,8 @@ Drop a GitHub URL and watch the AI clone the repo, run static analysis, and reas
    - [Semgrep](https://semgrep.dev) — language-agnostic vulnerability patterns (SQL injection, XSS, insecure APIs)
    - [Bandit](https://bandit.readthedocs.io) — Python-specific security linter
    - [Gitleaks](https://gitleaks.io) — secrets and credential scanner
+
+   Each covers a different kind of risk: Semgrep catches insecure code patterns across most languages, Bandit adds deeper checks for Python specifically, and Gitleaks finds credentials committed to the repo, which code-pattern tools aren't built to detect.
 3. **Reasons** with Claude (claude-sonnet-5 with adaptive thinking) — evaluates each finding, filters false positives, assigns severity, writes fix recommendations
 4. **Streams** every token of AI reasoning live to the browser over WebSocket
 5. **Generates** a shareable public report URL with full findings grouped by severity

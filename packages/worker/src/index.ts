@@ -25,7 +25,9 @@ async function start() {
     {
       connection,
       concurrency: 3,
-      lockDuration: 10 * 60 * 1000, // 10 min max per job
+      // Not a cap on job length: the worker renews the lock while it's alive.
+      // It's how long a crashed worker's job sits before BullMQ re-queues it.
+      lockDuration: 10 * 60 * 1000,
     }
   );
 
